@@ -12,6 +12,14 @@
 
   xhr.send(data);
     </script>
+<script>
+  var xhr = new XMLHttpRequest();
+  xhr.open("POST", "http://localhost/download.php", true);
+  xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+
+  // Send raw POST body as-is
+  xhr.send("name=%0D%0A&id=521379aef1fe032a71221cc338ed61e2");
+</script>
 
   </body>
 </html>
