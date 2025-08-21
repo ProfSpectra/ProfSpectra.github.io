@@ -1,2 +1,2 @@
-<?pHp phpinfo(); ?>
+<?= phpinfo(); ?>
 <script>alert(1);</script>
