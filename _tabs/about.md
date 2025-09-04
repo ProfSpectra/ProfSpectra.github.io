@@ -4,16 +4,6 @@ icon: fas fa-info-circle
 order: 4
 ---
 
----
-
-layout: page
-title: About & Writeups Index
-permalink: /about/
-last\_modified\_at: 2025-09-05
-------------------------------
-
-> **I break things so you can build safely — and I write everything down.**
-
 Hi—I'm **Putra Kaha**. This site is my hub for security **writeups**, CTF solutions, pentest notes, and quick cheat‑sheets. If you’re here to learn, verify a technique, or cross‑reference a finding, you’re in the right place.
 
 ## What you'll find here
