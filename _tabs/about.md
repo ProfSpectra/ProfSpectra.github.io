@@ -31,11 +31,6 @@ Hi—I'm **Putra Kaha**. This site is my hub for security **writeups**, CTF solu
 
 ---
 
-## Featured
-
-{% assign featured = site.posts | where\_exp: "p", "p.tags contains 'featured'" %}
-{% if featured and featured.size > 0 %}
-
 <div class="post-grid">
 {% for post in featured limit:6 %}
   <div class="post-card">
