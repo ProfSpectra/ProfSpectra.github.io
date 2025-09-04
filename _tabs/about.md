@@ -15,28 +15,6 @@ Hi—I'm **Putra Kaha**. This site is my hub for security **writeups**, CTF solu
 
 ---
 
-## Browse by category
-
-<ul>
-{% for category in site.categories %}
-  {% assign name = category[0] %}
-  {% assign posts = category[1] %}
-  <li><a href="/categories/{{ name | slugify }}/">{{ name }}</a> <span class="text-muted small">({{ posts | size }})</span></li>
-{% endfor %}
-</ul>
-
-## Browse by tag
-
-<ul>
-{% for tag in site.tags %}
-  {% assign name = tag[0] %}
-  {% assign posts = tag[1] %}
-  <li><a href="/tags/#{{ name | slugify }}">{{ name }}</a> <span class="text-muted small">({{ posts | size }})</span></li>
-{% endfor %}
-</ul>
-
----
-
 ## Methodology & disclosure
 
 * **Reproducibility first:** each writeup aims to provide exact steps and environment notes.
