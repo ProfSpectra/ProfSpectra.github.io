@@ -15,11 +15,6 @@ Hi—I'm **Putra Kaha**. This site is my hub for security **writeups**, CTF solu
 
 ---
 
-## Latest writeups
-
-{% assign writeups = site.posts | where\_exp: "p", "p.tags contains 'CTF' or p.categories contains 'writeup' or p.tags contains 'writeup'" %}
-{% if writeups and writeups.size > 0 %}
-
 <ul>
 {% for post in writeups limit:10 %}
   <li>
