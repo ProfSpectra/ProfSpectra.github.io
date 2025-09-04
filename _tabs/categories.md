@@ -4,11 +4,21 @@ icon: fas fa-stream
 order: 1
 ---
 
-{% for categories in site.categories %}
-  <h3>{{ categories[0] }}</h3>
+<h2>{{ page.list_title | default: "Posts" }}</h2>
+<div>
   <ul>
-    {% for post in categories[1] %}
-      <li><a href="{{ post.url }}">{{ post.title }}</a></li>
+    {% assign page_category = page.categories | first %}
+    {% for post in site.posts %}
+      {% if post.categories contains page_category %}
+      <li>
+        {%- assign date_format = site.minima.date_format | default: "%b %-d, %Y" -%}
+        <b>
+          <a href="{{ post.url | relative_url }}">
+            {{ post.title | escape }}
+          </a>
+        </b> - <i>{{ post.date | date: date_format }}</i>
+      </li>
+      {% endif %}
     {% endfor %}
   </ul>
-{% endfor %}
+</div>
