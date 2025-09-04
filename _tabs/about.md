@@ -15,34 +15,6 @@ Hi—I'm **Putra Kaha**. This site is my hub for security **writeups**, CTF solu
 
 ---
 
-<ul>
-{% for post in writeups limit:10 %}
-  <li>
-    <a href="{{ post.url | relative_url }}">{{ post.title }}</a>
-    <span class="text-muted small">— {{ post.date | date: "%Y-%m-%d" }}</span><br/>
-    <span class="small">{{ post.excerpt | strip_html | truncate: 140 }}</span>
-  </li>
-{% endfor %}
-</ul>
-<p class="small"><a href="/archive/">See all posts →</a></p>
-{% else %}
-<p>No writeups published yet. Check back soon.</p>
-{% endif %}
-
----
-
-<div class="post-grid">
-{% for post in featured limit:6 %}
-  <div class="post-card">
-    <h3 class="h5"><a href="{{ post.url | relative_url }}">{{ post.title }}</a></h3>
-    <p class="small">{{ post.excerpt | strip_html | truncate: 120 }}</p>
-  </div>
-{% endfor %}
-</div>
-{% endif %}
-
----
-
 ## Browse by category
 
 <ul>
