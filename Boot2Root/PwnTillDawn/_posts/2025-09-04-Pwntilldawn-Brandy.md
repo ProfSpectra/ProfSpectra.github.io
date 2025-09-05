@@ -46,7 +46,7 @@ From this result there are two accesible path:
 
 ![Cart Path Result](cart.png)
 
-From this result we retrive the first flag and domain for the IP. ```crm.pwntilldawn.com```
+From this result we retrive the first flag and domain for the IP which is ```crm.pwntilldawn.com```.
 
 > FLAG61=2971f3459fe55db1237aad5e0f0a259a41633962
 
@@ -55,3 +55,12 @@ From this result we retrive the first flag and domain for the IP. ```crm.pwntill
 ![Master Path Result](master.png)
 
 For the second path, we know that the creator always use **rick** for everything. So we figure out that **rick** is common username and password for this challenge.
+
+## Web Exploitation
+
+To start with the web exploitation, we first need to add the ip and domain into hosts file.
+
+```bash
+# Add domain into hosts file
+echo 10.150.150.27 crm.pwntilldawn.com >> hosts
+```
