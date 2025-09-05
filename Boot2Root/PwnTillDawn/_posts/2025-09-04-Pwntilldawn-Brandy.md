@@ -44,7 +44,7 @@ From this result there are two accesible path:
 
 1. /cart/
 
-![/cart Result](cart.png)
+![Cart Path Result](cart.png)
 
 From this result we retrive the first flag and domain for the IP.
 <crm.pwntilldawn.com>
@@ -53,6 +53,6 @@ From this result we retrive the first flag and domain for the IP.
 
 2. /master/
 
-![/master Result](master.png)
+![Master Path Result](master.png)
 
 For the second path, we know that the creator always use **rick** for everything. So we figure out that **rick** is common username and password for this challenge.
