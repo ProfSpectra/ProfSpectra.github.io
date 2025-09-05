@@ -47,7 +47,7 @@ From this result there are two accesible path:
 ![Cart Path Result](cart.png)
 
 From this result we retrive the first flag and domain for the IP.
-<crm.pwntilldawn.com>
+<http://crm.pwntilldawn.com>
 
 > FLAG61=2971f3459fe55db1237aad5e0f0a259a41633962
 
