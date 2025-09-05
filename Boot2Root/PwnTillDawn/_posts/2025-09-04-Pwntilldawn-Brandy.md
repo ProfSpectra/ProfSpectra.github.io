@@ -36,3 +36,23 @@ dirsearch -u http://10.150.150.27
 ```
 
 ![Dirsearch Result](dirsearch.png)
+
+From this result there are two accesible path:
+
+  - /cart/
+  - /master/
+
+1. /cart/
+
+![/cart Result](cart.png)
+
+From this result we retrive the first flag and domain for the IP.
+<crm.pwntilldawn.com>
+
+> FLAG61=2971f3459fe55db1237aad5e0f0a259a41633962
+
+2. /master/
+
+![/master Result](master.png)
+
+For the second path, we know that the creator always use **rick** for everything. So we figure out that **rick** is common username and password for this challenge.
