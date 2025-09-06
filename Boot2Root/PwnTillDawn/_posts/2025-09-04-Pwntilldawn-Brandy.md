@@ -1,6 +1,7 @@
 ---
 layout: post
 title:  "PwnTillDawn - Brandy (Difficult)"
+description: A PwnTillDawn Boot2Root Challenge Rated Difficult
 tags: PwnTillDawn Linux Boot2Root Difficult
 media_subpath: /assets/img/writeups/PwnTillDawn/Brandy/
 image:
