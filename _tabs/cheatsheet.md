@@ -3,7 +3,6 @@ icon: fas fa-book
 order: 3
 ---
 
-<h2>Cheatsheet</h2>
 <div class="card categories">
   {% assign ROOT = 'Cheatsheet' %}
   {% assign all_cheat = site.categories[ROOT] %}
