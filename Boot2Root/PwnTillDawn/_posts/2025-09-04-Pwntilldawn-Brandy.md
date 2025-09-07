@@ -143,9 +143,9 @@ Our thought process comes from here
     | Payload                                                     | Status  |
     | ----------------------------------------------------------- | ------- |
     | **Randomcase** (`SelECT`)                                   | Fail    |
-    | **space to comment** (`union/\*\*/select`)                  | Fail    |
+    | **Space to Comment** (`union/\*\*/select`)                  | Fail    |
     | **Versioned (conditional) comment** (`/\*!select/\*\*/\*/`) | Fail    |
-    | **Space to newline** (`union%0aselect`)                     | Success |
+    | **Space to Newline** (`union%0aselect`)                     | Success |
 
 > Always figure out how the detection work before try to bypass it.
 {: .prompt-tip }
@@ -558,7 +558,7 @@ To proceed with privilege escalation, there are many vulnerability available. Pr
     From that version, we found that it vulnerable to **CVE 2020-7247** which can execute command through root user. Then we proceed to the next step. As the port only listen locally, we proceed to forward the port to our local using **ssh**.
 
     ```bash
-    ssh -L {port}:127.0.0.1:25 {user}@{host}
+    ssh -R {port}:127.0.0.1:25 {user}@{host}
     ```
 
     ![Port Forward](Port_Forward.png)

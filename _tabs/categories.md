@@ -3,22 +3,3 @@ layout: categories
 icon: fas fa-stream
 order: 1
 ---
-
-<h2>{{ page.list_title | default: "Posts" }}</h2>
-<div>
-  <ul>
-    {% assign page_category = page.categories | first %}
-    {% for post in site.posts %}
-      {% if post.categories contains page_category %}
-      <li>
-        {%- assign date_format = site.minima.date_format | default: "%b %-d, %Y" -%}
-        <b>
-          <a href="{{ post.url | relative_url }}">
-            {{ post.title | escape }}
-          </a>
-        </b> - <i>{{ post.date | date: date_format }}</i>
-      </li>
-      {% endif %}
-    {% endfor %}
-  </ul>
-</div>
