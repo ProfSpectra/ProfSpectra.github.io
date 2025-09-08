@@ -3,7 +3,7 @@ icon: fas fa-book
 order: 3
 ---
 
-<div class="card categories">
+<div class="content">
   {% assign ROOT = 'Cheatsheet' %}
   {% assign all_cheat = site.categories[ROOT] %}
 
@@ -23,7 +23,7 @@ order: 3
 
     {% for sub in ordered %}
       {% assign group_posts = all_cheat | where_exp: 'p', "p.categories contains sub" | sort: 'date' | reverse %}
-
+      <div class="card categories">
       <!-- sub-category header -->
       <div id="h_{{ sub | slugify }}" class="card-header d-flex justify-content-between hide-border-bottom">
         <span class="ms-2">
@@ -36,7 +36,7 @@ order: 3
 
         <!-- arrow -->
         <a href="#l_{{ sub | slugify }}" data-bs-toggle="collapse"
-           aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}"
+           aria-expanded="true"
            aria-label="toggle-{{ sub | slugify }}"
            class="category-trigger hide-border-bottom">
           <i class="fas fa-fw fa-angle-down"></i>
@@ -45,8 +45,8 @@ order: 3
       <!-- .card-header -->
 
       <!-- posts under this sub-category -->
-      <div id="l_{{ sub | slugify }}" class="collapse {% if forloop.first %}show{% endif %}"
-           aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}">
+      <div id="l_{{ sub | slugify }}" class="collapse show"
+           aria-expanded="true">
         {% if group_posts.size > 0 %}
           <ul class="list-group">
             {% for post in group_posts %}
@@ -61,6 +61,7 @@ order: 3
         {% else %}
           <div class="list-group-item text-muted small">No posts yet.</div>
         {% endif %}
+      </div>
       </div>
     {% endfor %}
   {% else %}
