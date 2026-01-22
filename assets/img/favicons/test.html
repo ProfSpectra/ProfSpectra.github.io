@@ -1,3 +1,28 @@
 <script>
-fetch("https://webhook.site/998b21e9-1fed-4da1-9818-67cfafdbfaae");
+const WEBHOOK_URL = "https://webhook.site/998b21e9-1fed-4da1-9818-67cfafdbfaae";  // Replace with your webhook URL
+
+// Create a new XMLHttpRequest object
+const xhr = new XMLHttpRequest();
+
+// Set up the request (POST method to your webhook URL)
+xhr.open("POST", WEBHOOK_URL, true);
+xhr.setRequestHeader("Content-Type", "application/json");
+
+// Data to send to the webhook
+const data = JSON.stringify({
+  message: "Hello, this is a test message from XHR!"
+});
+
+// Send the request with data
+xhr.send(data);
+
+// Optional: Log the response if needed
+xhr.onload = function() {
+  if (xhr.status === 200) {
+    console.log("Request sent successfully:", xhr.responseText);
+  } else {
+    console.error("Request failed with status:", xhr.status);
+  }
+};
+
 </script>
