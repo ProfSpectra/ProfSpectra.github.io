@@ -172,6 +172,9 @@ Decoding the first 32 bytes produced the flag above; `13,10` was the Windows CRL
 ![PowerShell reading root.txt as decimal bytes for flag verification](root_flag_bytes.png)
 _Verification: the root file was read as a decimal byte array, independently decoded to confirm the flag._
 
+![Hack The Box completion banner: You have solved Touch!](touch_solved.png)
+_Box ownership confirmed: the Hack The Box dashboard marks the machine as solved._
+
 ## Security lessons
 
 - Device status endpoints should not expose identifiers used as authentication defaults.
