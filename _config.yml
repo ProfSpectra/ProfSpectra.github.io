@@ -11,6 +11,11 @@ lang: en
 # Change to your timezone › https://kevinnovak.github.io/Time-Zone-Picker
 timezone:
 
+# Publish posts whose date is still ahead of the build clock (e.g. a post
+# written in UTC+8 on the evening of the 13th, published while the UTC
+# builder still thinks it is the 13th).
+future: true
+
 # jekyll-seo-tag settings › https://github.com/jekyll/jekyll-seo-tag/blob/master/docs/usage.md
 # ↓ --------------------------
 
