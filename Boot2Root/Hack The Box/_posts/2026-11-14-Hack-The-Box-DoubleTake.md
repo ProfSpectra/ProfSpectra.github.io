@@ -1,8 +1,8 @@
 ---
 layout: post
 title:  "Hack The Box - DoubleTake"
-description: A Hack The Box Linux Boot2Root Challenge Rated Medium/Hard - by ProfSpectra
-tags: HackTheBox Linux Boot2Root Medium Hard
+description: A Hack The Box Linux Boot2Root Challenge Rated Easy - by ProfSpectra
+tags: HackTheBox Linux Boot2Root Easy
 ---
 
 ## At a glance
@@ -10,7 +10,7 @@ tags: HackTheBox Linux Boot2Root Medium Hard
 | Item                 | Details                                                            |
 | -------------------- | ------------------------------------------------------------------ |
 | **Type**             | Boot2Root                                                          |
-| **Difficulty**       | Medium / Hard                                                      |
+| **Difficulty**       | Easy                                                               |
 | **Operating System** | Ubuntu host, Alpine Linux container                                |
 | **Vulnerabilities**  | CVE-2026-123158 (SSHole) and CVE-2026-41567 (Docker archive decompression) |
 
