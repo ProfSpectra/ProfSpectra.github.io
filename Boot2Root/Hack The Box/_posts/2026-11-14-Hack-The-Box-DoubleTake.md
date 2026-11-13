@@ -3,6 +3,9 @@ layout: post
 title:  "Hack The Box - DoubleTake"
 description: A Hack The Box Linux Boot2Root Challenge Rated Easy - by ProfSpectra
 tags: HackTheBox Linux Boot2Root Easy
+media_subpath: /assets/img/writeups/HackTheBox/DoubleTake/
+image:
+  path: 10-status-page.png
 ---
 
 ## At a glance
@@ -38,6 +41,8 @@ The target exposed two TCP services:
 80/tcp  HTTP
 ```
 
+![Open ports: SSH 22 and HTTP 80](01-enumeration.png)
+
 The SSH banner was:
 
 ```text
@@ -52,6 +57,8 @@ Server: nginx/1.24.0 (Ubuntu)
 WWW-Authenticate: Basic realm="Zentara"
 ```
 
+![Zentara requires Basic Auth](02-http-401.png)
+
 The authenticated route map was initially inaccessible. The important detail at this stage was not the web password field, but the **OpenSSH version**.
 
 ## 2. Foothold: CVE-2026-123158 (SSHole)
@@ -65,6 +72,8 @@ The target's likely accounts were tested with Paramiko. The `alpine` account acc
 ```text
 uid=1000(alpine) gid=1000(alpine) groups=1000(alpine)
 ```
+
+![SSHole two-attempt bypass yields an alpine shell](03-sshole-bypass.png)
 
 Minimal proof-of-concept logic:
 
@@ -114,6 +123,8 @@ The saved login used `encType: 0`, so its username and password were merely Base
 }
 ```
 
+![Firefox profile exposes saved Zentara credential](04-firefox-credentials.png)
+
 Decoding yielded:
 
 ```text
@@ -121,6 +132,8 @@ bob:CorrectHorseBatteryStaple
 ```
 
 Those credentials authenticated successfully to the Zentara console on port 80.
+
+![Authenticated Zentara console returns 200 OK](05-web-authenticated.png)
 
 ## 4. Authenticated application mapping
 
@@ -145,7 +158,11 @@ OS / Arch: linux/amd64
 Workspace Container: zentara-alpine
 ```
 
+![Status page: Docker 29.5.0, zentara-alpine container](10-status-page.png)
+
 The deployment documentation stated that `/deploy` forwards uploaded archives to the container engine's `PUT /containers/<container_name>/archive` endpoint. It accepts `.tar`, `.tar.gz`, and `.tar.xz` archives, plus a caller-controlled `workspace` extraction path.
+
+![Deploy page: archive upload to the workspace](11-deploy-page.png)
 
 ## 5. Arbitrary root file writes in the container
 
@@ -183,6 +200,8 @@ curl -u bob:CorrectHorseBatteryStaple \
 
 The deployment returned success and the file existed in the container as a root-owned file. This primitive could write `/etc/group`, `/etc/passwd`, SSH configuration, and executable files.
 
+![Symlink traversal writes into the container as root](06-archive-traversal.png)
+
 A setuid copy of the container's BusyBox binary, invoked through a symlink named `su`, provided an effective root shell in the container:
 
 ```text
@@ -212,6 +231,8 @@ uid=1000(alpine) gid=1000(alpine) groups=1000(alpine),1001(bob)
 bee3379599c489fd43704ba32c50b8a1
 ```
 
+![User flag: /home/bob/user.txt](07-user-flag.png)
+
 ## 7. Host escape: CVE-2026-41567
 
 The status page's Docker version was the decisive clue. Docker Engine before **29.5.1** is affected by CVE-2026-41567: while handling a compressed `PUT /containers/<id>/archive`, the daemon can resolve an external decompression binary such as `xz` from the container's filesystem instead of the host's filesystem.
@@ -226,11 +247,15 @@ The arbitrary-write primitive planted a replacement `/usr/bin/xz` and preserved 
 4. Copied `/root/root.txt` from that view into a readable container path.
 5. Executed `xz.real` with the original arguments so deployment completed normally.
 
+![Trojanized xz planted in the container](08-trojan-xz.png)
+
 The payload's effective host-root result was verified through the Docker daemon's root directory. The root flag was:
 
 ```text
 5bd2a7a0cdd1fb9fd313a318141076c3
 ```
+
+![Host root flag read via the daemon's /proc root](09-root-flag.png)
 
 ## Security lessons
 
