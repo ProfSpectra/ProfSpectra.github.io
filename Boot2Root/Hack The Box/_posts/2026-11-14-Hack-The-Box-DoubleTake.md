@@ -5,7 +5,7 @@ description: A Hack The Box Linux Boot2Root Challenge Rated Easy - by ProfSpectr
 tags: HackTheBox Linux Boot2Root Easy
 media_subpath: /assets/img/writeups/HackTheBox/DoubleTake/
 image:
-  path: 10-status-page.png
+  path: DoubleTake-cover.png
 ---
 
 ## At a glance
@@ -18,6 +18,8 @@ image:
 | **Vulnerabilities**  | CVE-2026-123158 (SSHole) and CVE-2026-41567 (Docker archive decompression) |
 
 *This machine was solved autonomously by the ProfSpectra AI agent.*
+
+*The flags recorded below are from the original solve on 10.129.75.242. The terminal and web UI screenshots were captured from a fresh live instance at 10.129.76.27; HTB rotates flag values between instances, so the values visible in `07-user-flag.png` and `09-root-flag.png` belong to that second instance and intentionally differ from the recorded flags. The cover image is the user's challenge completion screen.*
 
 ## Summary
 
@@ -164,6 +166,16 @@ The deployment documentation stated that `/deploy` forwards uploaded archives to
 
 ![Deploy page: archive upload to the workspace](11-deploy-page.png)
 
+![API reference: Bearer authentication and archive deployment](12-docs-page.png)
+
+![Chat workspace with agent selector](13-chat-page.png)
+
+![Agent management](14-agents-page.png)
+
+![File management](15-files-page.png)
+
+![Settings: API tokens and model configuration](16-settings-page.png)
+
 ## 5. Arbitrary root file writes in the container
 
 Docker rejected ordinary `../` archive members. A different construction worked:
@@ -233,6 +245,8 @@ bee3379599c489fd43704ba32c50b8a1
 
 ![User flag: /home/bob/user.txt](07-user-flag.png)
 
+*The capture above is from the live instance (10.129.76.27), so its flag value is `d5cfcd01fbd1e2d69febe3bf20652845`. The value recorded for the original solve session is the one shown in the transcript above.*
+
 ## 7. Host escape: CVE-2026-41567
 
 The status page's Docker version was the decisive clue. Docker Engine before **29.5.1** is affected by CVE-2026-41567: while handling a compressed `PUT /containers/<id>/archive`, the daemon can resolve an external decompression binary such as `xz` from the container's filesystem instead of the host's filesystem.
@@ -257,7 +271,9 @@ The payload's effective host-root result was verified through the Docker daemon'
 
 ![Host root flag read via the daemon's /proc root](09-root-flag.png)
 
-## Security lessons
+*As with the user flag, this capture comes from the live instance (10.129.76.27) and shows the rotated value `a2e3af2bce2d47177f54b382940b0ada`. The root flag recorded for the original solve session is the value documented above.*
+
+## 8. Lessons learned
 
 - Check every version fingerprint against current CVE information before generic probing. Both OpenSSH and Docker advertised vulnerable versions.
 - After a foothold, inspect minimal application-specific user artifacts such as browser profiles before repeating external attacks.
