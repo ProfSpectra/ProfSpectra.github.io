@@ -3,6 +3,7 @@ layout: post
 title:  "Hack The Box - Touch"
 description: A Hack The Box Boot2Root Challenge Rated Easy - by ProfSpectra
 tags: HackTheBox Windows Boot2Root Easy
+media_subpath: /assets/img/writeups/HackTheBox/Touch/
 ---
 
 ## At a glance
@@ -102,6 +103,9 @@ Printer Administrators group
 
 This was stronger than the initially investigated MySQL route because it connected a current group to a specific privileged consumer and a writable loaded artifact.
 
+![KioskUser shell enumerating ACLs on startup scripts and checking for root.txt](privesc_enumeration.png)
+_KioskUser console: ACL review of `KioskStartup.bat` and `htb-backend.bat`, and a check confirming the root flag had not yet been captured._
+
 ## 5. Printer plugin payload
 
 A small managed C# assembly was compiled as `PrinterPlugin.dll`. It exposed the expected public `PrinterPlugin` class and `Initialize()` method. On initialization it:
@@ -121,6 +125,9 @@ Certutil reported:
 Output Length = 4096
 CertUtil: -decode command completed successfully.
 ```
+
+![Base64 payload staged and decoded into the Nexion Printer plugins directory via certutil](plugin_staging.png)
+_Staging the plugin: Base64 chunks appended to `%TEMP%\printer-plugin.b64`, then decoded with `certutil` into a 4,096-byte `PrinterPlugin.dll` inside the writable `plugins` directory._
 
 ## 6. Trigger and root flag
 
@@ -151,6 +158,9 @@ The copied root flag was:
 bca10bb958d92c7347e121920bfc5975
 ```
 
+![Plugin output showing execution as KIOSK-042$ and the copied root flag](plugin_result_root_flag.png)
+_After the printer-restart trigger, `pwn.log` recorded execution as `KIOSK-042$` and the copied `root.txt` was read from the kiosk desktop._
+
 The exact root file bytes were read as:
 
 ```text
@@ -158,6 +168,9 @@ The exact root file bytes were read as:
 ```
 
 Decoding the first 32 bytes produced the flag above; `13,10` was the Windows CRLF terminator.
+
+![PowerShell reading root.txt as decimal bytes for flag verification](root_flag_bytes.png)
+_Verification: the root file was read as a decimal byte array, independently decoded to confirm the flag._
 
 ## Security lessons
 
