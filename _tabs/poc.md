@@ -1,0 +1,66 @@
+---
+icon: fas fa-flask
+order: 5
+---
+
+<div class="content">
+  {% assign ROOT = 'PoC' %}
+  {% assign all = site.categories[ROOT] %}
+
+  {% if all and all.size > 0 %}
+    {%- comment -%} Collect unique sub-categories under PoC {%- endcomment -%}
+    {% assign subs = "" | split: "" %}
+    {% for p in all %}
+      {% for c in p.categories %}
+        {% if c != ROOT %}
+          {% unless subs contains c %}
+            {% assign subs = subs | push: c %}
+          {% endunless %}
+        {% endif %}
+      {% endfor %}
+    {% endfor %}
+    {% assign ordered = subs | sort %}
+
+    {% for sub in ordered %}
+      {% assign group_posts = all | where_exp: 'p', "p.categories contains sub" | sort: 'date' | reverse %}
+      <div class="card categories">
+      <div id="h_{{ sub | slugify }}" class="card-header d-flex justify-content-between hide-border-bottom">
+        <span class="ms-2">
+          <i class="far fa-folder-open fa-fw"></i>
+          <a href="/categories/{{ sub | slugify }}/" class="mx-2">{{ sub }}</a>
+          <span class="text-muted small font-weight-light">
+            {{ group_posts.size }} {% if group_posts.size == 1 %}post{% else %}posts{% endif %}
+          </span>
+        </span>
+        <a href="#l_{{ sub | slugify }}" data-bs-toggle="collapse"
+           aria-expanded="true"
+           aria-label="toggle-{{ sub | slugify }}"
+           class="category-trigger hide-border-bottom">
+          <i class="fas fa-fw fa-angle-down"></i>
+        </a>
+      </div>
+      <div id="l_{{ sub | slugify }}" class="collapse show"
+           aria-expanded="true">
+        {% if group_posts.size > 0 %}
+          <ul class="list-group">
+            {% for post in group_posts %}
+              {%- assign date_format = site.minima.date_format | default: "%b %-d, %Y" -%}
+              <li class="list-group-item">
+                <i class="fas fa-file-alt fa-fw"></i>
+                <a href="{{ post.url | relative_url }}" class="mx-2">{{ post.title | escape }}</a>
+                <span class="text-muted small font-weight-light">{{ post.date | date: date_format }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <div class="list-group-item text-muted small">No posts yet.</div>
+        {% endif %}
+      </div>
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="card-header">
+      <span class="ms-2">No PoCs yet.</span>
+    </div>
+  {% endif %}
+</div>
