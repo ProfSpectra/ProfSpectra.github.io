@@ -2,11 +2,13 @@
 """ProfSpectra high-impact advisory watch collector.
 
 Stdlib-only, deterministic daily collector for the ProfSpectra Advisory
-watch.  Bounded pulls from CISA KEV, NVD CVE API 2.0 and GitHub global
-advisories (via the existing authenticated `gh` CLI — no tokens are read,
-stored or copied by this script), with OSV record enrichment.  Produces a
-small derived JSON state file plus per-run evidence snapshots; it never
-executes exploit code and never publishes anything by itself.
+watch.  Bounded pulls from CISA KEV, NVD CVE API 2.0 and per-CVE GitHub
+advisory lookups (via the existing authenticated `gh` CLI — no tokens are
+read, stored or copied by this script), plus bounded per-watched-CVE OSV
+record enrichment.  Produces a small derived JSON state file plus
+per-run evidence snapshots (canonicalized JSON — see the truthfulness
+note below); it never executes exploit code and never publishes
+anything by itself.
 
 Design rules (see docs/advisory-watch-operations.md):
   * no API keys required; NVD is paced (>=6s between requests) and NVD
@@ -17,7 +19,10 @@ Design rules (see docs/advisory-watch-operations.md):
     all previously collected entries untouched;
   * withdrawals (GHSA withdrawn_at / OSV withdrawn) flip records to
     WITHDRAWN — visible, never a silent delete;
-  * evidence snapshots (verbatim provider JSON + SHA-256) are stored under
+  * evidence snapshots are CANONICALIZED JSON (sorted keys, re-serialized)
+    + SHA-256 of exactly the stored bytes — they are not byte-verbatim
+    wire responses; the digest is reproducible against the stored
+    document, not against the raw HTTP body.  Stored under
     .advisory-watch/evidence/, which is gitignored — only the bounded
     derived data in .advisory-watch/state.json is committed;
   * "PoC: Confirmed working" requires a manually curated verification
@@ -49,6 +54,13 @@ OSV_API = "https://api.osv.dev/v1/vulns/"
 NVD_MIN_INTERVAL_S = 6.0
 NVD_RESULTS_PER_PAGE = 2000
 NVD_WINDOW_DAYS = 3  # lastMod window (research rec), inside the 120-day cap
+# Overlap guard: if the previous successful run is older than this, the
+# fixed windows may not cover the gap and the run fails loudly instead
+# of silently missing modifications/withdrawals (docs: cron alerting).
+MAX_COVERAGE_GAP_DAYS = 3.0
+# Per-CVE OSV/GHSA lookups: pause between requests so the enrichment
+# pass stays polite; NVD pacing (6 s) applies on its own host separately.
+ENRICH_MIN_INTERVAL_S = 1.0
 
 WATCH_DIR = ".advisory-watch"
 STATE_FILE = "state.json"
@@ -237,12 +249,13 @@ class GhCli:
     """GitHub public API access through the already-authenticated `gh`.
 
     The token never passes through this script: `gh` reads its own config.
-    Falls back to `gh api --paginate` only when GH_TOKEN is absent.
+    Only per-CVE advisory lookups are used (`advisories?cve_id=<id>`) so
+    the GHSA channel is exact for watched CVEs and never silently
+    truncated by the global feed's ~1000-item cap.
     """
 
-    def __init__(self, runner=None, max_items=1000):
+    def __init__(self, runner=None):
         self._runner = runner or self._default_runner
-        self._max_items_default = max_items
 
     @staticmethod
     def _default_runner(args):
@@ -252,42 +265,25 @@ class GhCli:
             raise RuntimeError("gh api failed: %s" % proc.stderr.strip())
         return proc.stdout
 
-    def paginated(self, endpoint, max_items=None):
-        """Fetch all pages of `gh api --paginate` for endpoint, flattened.
+    def per_cve(self, cve_id):
+        """Look up global advisories for one CVE: `advisories?cve_id=<id>`.
 
-        gh handles cursor pagination (Link headers) itself.  Depending on
-        version, `--paginate` emits either one JSON array of page-arrays
-        (with --slurp) or a stream of page objects/arrays; both are
-        accepted here.  The total item count is capped so the run stays
-        bounded.
+        Unlike the old paginated-window query (which GitHub caps and
+        which silently truncated past the first ~1000 items), the
+        per-CVE lookup returns exactly the advisories for that CVE, so
+        a watched item or its withdrawal is never missed for
+        window-size reasons.  Raises FetchError on gh failure (never
+        silently truncates).
         """
-        max_items = max_items if max_items is not None else self._max_items_default
+        endpoint = "advisories?cve_id=%s" % cve_id
         try:
-            raw = self._runner(["--paginate", endpoint])
+            raw = self._runner([endpoint])
         except Exception as e:
             raise FetchError("gh api %s failed: %r" % (endpoint, e))
-        items = self._flatten(raw)
-        return items[:max_items]
-
-    @staticmethod
-    def _flatten(raw):
-        """Parse concatenated `gh api --paginate` output into one list."""
-        decoder = json.JSONDecoder()
-        text = raw.strip()
-        items = []
-        idx = 0
-        while idx < len(text):
-            while idx < len(text) and text[idx] in " \t\r\n":
-                idx += 1
-            if idx >= len(text):
-                break
-            obj, end = decoder.raw_decode(text, idx)
-            idx = end
-            if isinstance(obj, list):
-                items.extend(obj)
-            elif obj is not None:
-                items.append(obj)
-        return items
+        obj = json.loads(raw)
+        if isinstance(obj, dict):
+            obj = [obj]
+        return obj
 
 
 # ---------------------------------------------------------------------------
@@ -448,10 +444,16 @@ class State:
         self._add_source(item, "nvd",
                          "https://nvd.nist.gov/vuln/detail/%s" % cve)
         event = "NEW" if prev_modified is None else "UPDATED"
-        if item.get("kev"):
+        if item.get("status") == "WITHDRAWN":
+            pass  # a withdrawal is never silently un-withdrawn by an NVD edit
+        elif item.get("kev"):
             item["status"] = "ACTIVELY_EXPLOITED"
         elif item.get("status") == "MONITORING":
             item["status"] = "NEW" if prev_modified is None else "UPDATED"
+        else:
+            # NEW/UPDATED: a post-first-record modification must show in
+            # the status — an item can never remain NEW after a change.
+            item["status"] = "UPDATED"
         return event
 
     def upsert_ghsa(self, adv, now=None):
@@ -476,6 +478,11 @@ class State:
             # identical advisory data: no change, no event (idempotent
             # rerun — spurious UPDATED events would churn last_change)
             return "UNCHANGED"
+        if prev == record and withdrawn_at and item.get("status") == "WITHDRAWN":
+            # identical rerun of an already-applied withdrawal: no event,
+            # no duplicated evidence (idempotent — the withdrawal already
+            # happened and was recorded on an earlier run)
+            return "UNCHANGED"
         item["ghsa_record"] = record
         item["last_ghsa_update"] = adv.get("updated_at")
         item["ghsa_severity"] = adv.get("severity")
@@ -484,11 +491,68 @@ class State:
         self._add_source(item, "ghsa", adv.get("html_url")
                          or "https://github.com/advisories/%s" % adv["ghsa_id"])
         if withdrawn_at:
-            item["status"] = "WITHDRAWN"
-            item.setdefault("withdrawn_evidence", []).append(
-                "%s@%s" % (adv["ghsa_id"], withdrawn_at))
+            if item.get("status") != "WITHDRAWN":
+                item["status"] = "WITHDRAWN"
+                item.setdefault("withdrawn_evidence", []).append(
+                    "%s@%s" % (adv["ghsa_id"], withdrawn_at))
+                item["last_change"] = now or _now_iso()
+                return "WITHDRAWN"
+            # same withdrawal re-observed with other changed fields:
+            # record the data change but never duplicate the evidence
             item["last_change"] = now or _now_iso()
-            return "WITHDRAWN"
+            return "UPDATED"
+        item["last_change"] = now or _now_iso()
+        return "UPDATED"
+
+    def upsert_osv(self, osv_record, now=None):
+        """Apply a bounded OSV record to a watched item (enrichment +
+        withdrawal channel — the spec-required second withdrawal source).
+
+        The OSV record is keyed to an existing item (the collector only
+        looks up watched CVEs); fields are enriched non-destructively
+        and an OSV `withdrawn` timestamp flips status to WITHDRAWN, with
+        the same idempotency rules as GHSA withdrawals.
+        """
+        cve = osv_record.get("id")
+        if not cve or cve not in self.items:
+            return None
+        item = self.items[cve]
+        withdrawn_at = osv_record.get("withdrawn")
+        modified = osv_record.get("modified")
+        prev_modified = item.get("osv_modified")
+        record = {
+            "id": osv_record.get("id"),
+            "modified": modified,
+            "published": osv_record.get("published"),
+            "withdrawn": withdrawn_at,
+        }
+        prev = item.get("osv_record")
+        if prev == record:
+            if not withdrawn_at or item.get("status") == "WITHDRAWN":
+                return "UNCHANGED"  # identical rerun: idempotent
+        if prev_modified is not None and modified is not None and modified <= prev_modified:
+            return "UNCHANGED"  # older data never regresses the record
+        item["osv_record"] = record
+        if osv_record.get("summary"):
+            item["osv_summary"] = osv_record["summary"]
+        aliases = [a for a in osv_record.get("aliases", []) if a != cve]
+        if aliases:
+            item["osv_aliases"] = sorted(set(aliases))
+        refs = [r.get("url") for r in osv_record.get("references", [])
+                if r.get("url")]
+        if refs:
+            item["osv_references"] = refs
+        self._add_source(item, "osv", "%s%s" % (OSV_API, cve))
+        if withdrawn_at:
+            if item.get("status") != "WITHDRAWN":
+                item["status"] = "WITHDRAWN"
+                item.setdefault("withdrawn_evidence", []).append(
+                    "%s@%s" % (osv_record.get("id"), withdrawn_at))
+                item["last_change"] = now or _now_iso()
+                return "WITHDRAWN"
+            # withdrawal already recorded; possible other-field change
+            item["last_change"] = now or _now_iso()
+            return "UPDATED"
         item["last_change"] = now or _now_iso()
         return "UPDATED"
 
@@ -533,7 +597,8 @@ class State:
             item = self.items[cve]
             durable = (item.get("kev")
                        or item.get("status") == "WITHDRAWN"
-                       or item.get("verification"))
+                       or item.get("verification")
+                       or item.get("pocs"))
             if durable:
                 continue
             changed = item.get("last_change") or item.get("first_seen")
@@ -588,12 +653,22 @@ class State:
     def set_poc_confirmed(self, cve_id, verification, now=None):
         """Fail-closed gate for 'PoC: Confirmed working'.
 
-        Requires all three legs: (a) reproduction on the stated affected
-        version, (b) a matched fixed control where the issue does NOT
-        reproduce, (c) independent review.  Anything less raises
-        EvidenceError and the status stays PENDING_UNVERIFIED.  The
-        collector itself never calls this — it is for manual verification
-        records only.
+        Requires all three legs AND substantively meaningful content in
+        each — a hollow dict (e.g. ``{"env": "mock"}`` / ``{"x": 0}``)
+        fails closed, not just a missing leg:
+
+        * ``reproduction`` — non-mock environment (no "mock"/"fake"/
+          "stub"/"placeholder" env), an exact affected component and
+          version, the official/default configuration used, and captured
+          execution evidence (command(s) + observed result);
+        * ``control`` — the exact fixed (or otherwise meaningfully
+          different) version and a concrete observed result proving the
+          issue does not reproduce there;
+        * ``independent_review`` — a named reviewer and a verdict.
+
+        Anything less raises EvidenceError and the status stays
+        PENDING_UNVERIFIED.  The collector itself never calls this — it
+        is for manual verification records only.
         """
         legs = ("reproduction", "control", "independent_review")
         for leg in legs:
@@ -601,6 +676,54 @@ class State:
                 raise EvidenceError(
                     "Confirmed working requires %r evidence; gate fails closed"
                     % leg)
+        repro = verification["reproduction"]
+        control = verification["control"]
+        review = verification["independent_review"]
+
+        env = str(repro.get("env", "")).strip().lower()
+        if (not env or env in ("mock", "mocked", "fake", "stub", "stubbed",
+                               "placeholder", "synthetic", "simulated")
+                or "mock" in env or "fake" in env or "stub" in env
+                or "placeholder" in env or "simulat" in env):
+            raise EvidenceError(
+                "reproduction.env must be a real, non-mock environment "
+                "(got %r); gate fails closed" % repro.get("env"))
+        for field in ("component", "version", "config"):
+            if not str(repro.get(field, "")).strip():
+                raise EvidenceError(
+                    "reproduction.%s must state the exact affected %s "
+                    "(official release/defaults); gate fails closed"
+                    % (field, field))
+        for field in ("command", "result"):
+            if not str(repro.get(field, "")).strip():
+                raise EvidenceError(
+                    "reproduction.%s must capture actual execution "
+                    "evidence; gate fails closed" % field)
+        # the reproduction must match the exact affected version, not an
+        # arbitrary one — evidence keyed to the advisory under test.
+        affected = str(repro.get("affected_version", repro.get("version", ""))).strip()
+        reproduced_on = str(repro.get("version", "")).strip()
+        if affected and reproduced_on and affected != reproduced_on:
+            raise EvidenceError(
+                "reproduction.version must be the exact affected version "
+                "(%s != %s); gate fails closed" % (reproduced_on, affected))
+        for field in ("version", "result"):
+            if not str(control.get(field, "")).strip():
+                raise EvidenceError(
+                    "control.%s must carry the fixed version and its "
+                    "observed result; gate fails closed" % field)
+        # a control on the same version as the reproduction is not a
+        # matched fixed control — it proves nothing.
+        if str(control.get("version", "")).strip() == reproduced_on:
+            raise EvidenceError(
+                "control.version (%r) must differ from the affected "
+                "version (%r) — a fixed/meaningful control is required; "
+                "gate fails closed" % (control.get("version"), reproduced_on))
+        if not str(review.get("reviewer", "")).strip() or not str(
+                review.get("verdict", "")).strip():
+            raise EvidenceError(
+                "independent_review.reviewer and .verdict are required "
+                "(independent reviewer + explicit verdict); gate fails closed")
         item = self._item(cve_id, now)
         item["poc_status"] = "CONFIRMED_WORKING"
         item["verification"] = verification  # preserved verbatim
@@ -615,7 +738,13 @@ class State:
 
 
 def _snapshot(state_dir, provider, doc_id, payload_obj, source_url, now=None):
-    """Store a verbatim provider document + SHA-256 sidecar.
+    """Store a canonicalized provider document + SHA-256 sidecar.
+
+    Truthfulness contract: the stored file is CANONICALIZED JSON
+    (re-serialized, sorted keys, indent 2) — NOT the byte-verbatim wire
+    response.  The SHA-256 is computed over exactly the stored bytes, so
+    it is reproducible against the snapshot file, not against the raw
+    HTTP body.
 
     Evidence lives under <state_dir>/evidence/<provider>/ and is
     gitignored; only the bounded derived state is committed.  Returns the
@@ -642,23 +771,88 @@ def _snapshot(state_dir, provider, doc_id, payload_obj, source_url, now=None):
 # ---------------------------------------------------------------------------
 
 def run(transport=None, gh=None, state_dir=WATCH_DIR, repo_root=None,
-        kev_window_days=7, now=None):
+        kev_window_days=7, now=None, enrich_min_interval=ENRICH_MIN_INTERVAL_S,
+        ignore_stale=False):
     """One bounded collection run.  Returns a summary dict.
 
     Providers run independently: a failed provider sets its status to
     FAILED and the run continues with the others; existing state entries
     are never removed or downgraded because of a provider failure.
+    Per-CVE GHSA and OSV lookups (bounded, paced) enrich and check for
+    withdrawal only for CVEs already under watch, so a watched item or
+    its withdrawal is never missed for window-size reasons.
     """
     state_dir = Path(state_dir)
     state = State(state_dir)
     transport = transport or Transport()
+    now = now or _now_iso()
+    now_dt = dt.datetime.strptime(now, "%Y-%m-%dT%H:%M:%SZ")
     events = []
+    seen_this_run = set()  # (cve, event) already emitted — one logical
+                           # event per record per run (no NEW,NEW)
     summary = {
-        "at": now or _now_iso(),
+        "at": now,
         "events": events,
         "providers": {},
         "kev_version": None,
     }
+
+    # Fail-fast concurrency guard: a concurrent run could interleave
+    # state saves and lose updates (os.replace only prevents corruption).
+    lock_path = state_dir / "run.lock"
+    try:
+        fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        raise RuntimeError(
+            "advisory watch run already in progress (%s); concurrent "
+            "runs would lose state updates — refusing to start"
+            % lock_path)
+    try:
+        os.write(fd, ("%d\n" % os.getpid()).encode())
+        _run_locked(transport=transport, gh=gh, state=state, state_dir=state_dir,
+                    summary=summary, events=events, seen=seen_this_run,
+                    kev_window_days=kev_window_days, now=now, now_dt=now_dt,
+                    enrich_min_interval=enrich_min_interval,
+                    ignore_stale=ignore_stale)
+    finally:
+        os.close(fd)
+        os.unlink(lock_path)
+    return summary
+
+
+def _record_event(events, seen, cve, ev):
+    """Append (cve, ev) unless this logical event already fired this run."""
+    key = (cve, ev)
+    if key in seen:
+        return
+    seen.add(key)
+    events.append(key)
+
+
+def _run_locked(transport, gh, state, state_dir, summary, events, seen,
+                kev_window_days, now, now_dt, enrich_min_interval,
+                ignore_stale=False):
+    # Fail loudly on stale coverage: if the last successful run is older
+    # than MAX_COVERAGE_GAP_DAYS, the fixed 3-day NVD/GHSA windows cannot
+    # cover the gap and modifications/withdrawals could be silently
+    # missed — refuse instead (docs: cron alerting picks this up).
+    prev_saved_at = state.cursors.get("last_run_at") or _prev_saved_at(state_dir)
+    if prev_saved_at:
+        try:
+            prev_dt = dt.datetime.strptime(prev_saved_at, "%Y-%m-%dT%H:%M:%SZ")
+        except ValueError:
+            prev_dt = None
+        if prev_dt is not None and not ignore_stale:
+            gap_days = (now_dt - prev_dt).total_seconds() / 86400.0
+            if gap_days > MAX_COVERAGE_GAP_DAYS:
+                raise RuntimeError(
+                    "coverage gap: last successful run was %s (%.1f days "
+                    "ago) but the NVD/GHSA windows cover only %d days — "
+                    "modifications/withdrawals in the gap would be "
+                    "silently missed; run with --ignore-stale to accept "
+                    "the gap explicitly" % (prev_saved_at, gap_days,
+                                            NVD_WINDOW_DAYS))
+    state.cursors["last_run_at"] = now
 
     # CISA KEV — authoritative exploited-in-the-wild signal, single GET
     try:
@@ -669,7 +863,7 @@ def run(transport=None, gh=None, state_dir=WATCH_DIR, repo_root=None,
                          catalog, KEV_URL, now=now)
         state.cursors["kev_snapshot"] = snap["sha256"]
         state.apply_kev_catalog(catalog, now=now)
-        cutoff = dt.date.today() - dt.timedelta(days=kev_window_days)
+        cutoff = now_dt.date() - dt.timedelta(days=kev_window_days)
         recent = [e for e in catalog.get("vulnerabilities", [])
                   if dt.datetime.strptime(e["dateAdded"], "%Y-%m-%d").date() >= cutoff]
         state.cursors["kev_recent_events"] = sorted(
@@ -680,7 +874,7 @@ def run(transport=None, gh=None, state_dir=WATCH_DIR, repo_root=None,
         for entry in recent:
             ev = state.upsert_kev(entry, now=now)
             if ev and ev != "UNCHANGED":
-                events.append((entry["cveID"], ev))
+                _record_event(events, seen, entry["cveID"], ev)
         state.record_provider_status("kev", "OK")
         summary["providers"]["kev"] = "OK"
     except FetchError as e:
@@ -688,11 +882,11 @@ def run(transport=None, gh=None, state_dir=WATCH_DIR, repo_root=None,
         summary["providers"]["kev"] = "FAILED"
 
     # NVD — recently modified CVEs, high-impact filter
-    since = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=NVD_WINDOW_DAYS)
+    since = now_dt - dt.timedelta(days=NVD_WINDOW_DAYS)
     try:
         params = {
             "lastModStartDate": since.strftime("%Y-%m-%dT%H:%M:%S.000"),
-            "lastModEndDate": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000"),
+            "lastModEndDate": now_dt.strftime("%Y-%m-%dT%H:%M:%S.000"),
         }
         records = nvd_list(transport, params, max_pages=3)
         for rec in records:
@@ -702,7 +896,7 @@ def run(transport=None, gh=None, state_dir=WATCH_DIR, repo_root=None,
                           now=now)
                 ev = state.upsert_nvd(rec, now=now)
                 if ev and ev != "UNCHANGED":
-                    events.append((rec["id"], ev))
+                    _record_event(events, seen, rec["id"], ev)
         state.apply_kev_marks()  # KEV ids from the cursor mark NVD items
         state.record_provider_status("nvd", "OK")
         summary["providers"]["nvd"] = "OK"
@@ -710,34 +904,114 @@ def run(transport=None, gh=None, state_dir=WATCH_DIR, repo_root=None,
         state.record_provider_status("nvd", "FAILED", str(e))
         summary["providers"]["nvd"] = "FAILED"
 
-    # GitHub global advisories — enrichment + withdrawal channel.  Bounded:
-    # only advisories for CVEs already under watch are considered, so the
-    # GHSA stream enriches the KEV/NVD candidates instead of importing the
-    # whole feed.
-    if gh is not None:
-        try:
-            advisories = gh.paginated(
-                "advisories?updated=>%s&per_page=100"
-                % since.strftime("%Y-%m-%dT%H:%M:%SZ"))
-            watched = set(state.items)
-            for adv in advisories:
-                if adv.get("cve_id") in watched:
-                    ev = state.upsert_ghsa(adv, now=now)
-                    if ev and ev != "UNCHANGED":
-                        events.append((adv["cve_id"], ev))
-            state.record_provider_status("ghsa", "OK")
-            summary["providers"]["ghsa"] = "OK"
-        except FetchError as e:
-            state.record_provider_status("ghsa", "FAILED", str(e))
-            summary["providers"]["ghsa"] = "FAILED"
+    # Per-CVE enrichment/withdrawal checks (GHSA via
+    # `gh api advisories?cve_id=<id>`, OSV via /v1/vulns/<cve>) for
+    # watched items worth the lookups: durable records (KEV, WITHDRAWN,
+    # verified, PoC-linked) and the promotable candidates — bounded by
+    # design (the transient NVD monitoring ring is NOT enriched: it is
+    # unpublished and drops after 3 days; a withdrawal there is a
+    # non-event for the published record).  These per-CVE lookups
+    # replaced the old global window query, which GitHub caps around
+    # the first 1000 items — a watched item or withdrawal past that cap
+    # was silently missed.  Per-CVE lookups are exact for the watched
+    # id; a lookup failure marks the provider FAILED without deleting
+    # or downgrading anything.
+    enrich_ids = sorted({it["id"] for it in state.promote()}
+                        | {cve for cve, it in state.items.items()
+                           if it.get("kev") or it.get("status") == "WITHDRAWN"
+                           or it.get("verification") or it.get("pocs")})
+    if enrich_ids:
+        _enrich_per_cve(transport, gh, state, enrich_ids, state_dir, events,
+                        seen, now, enrich_min_interval, summary)
 
-    # GHSA enrichment may have marked items; compact the transient NVD
-    # ring so state.json stays bounded.  Durable records (KEV, WITHDRAWN,
-    # manual verification) are never dropped.
     state.compact()
     state.save()
     summary["promoted"] = state.promote()
     return summary
+
+
+def _enrich_per_cve(transport, gh, state, watched, state_dir, events, seen,
+                    now, min_interval, summary):
+    """GHSA + OSV per-CVE lookups for watched items (bounded, paced).
+
+    Enrichment lookups are paced through the shared transport sleeper
+    (per-host politeness) and a small explicit pause between per-CVE
+    lookups so the pass stays bounded and polite.
+    """
+    last_enrich_at = [None]
+
+    def pace():
+        # explicit pause between consecutive per-CVE GHSA lookups (they
+        # bypass Transport); OSV lookups are already paced by Transport
+        # per-host.  Injectable interval; tests pass 0.
+        last = last_enrich_at[0]
+        if last is not None and min_interval > 0:
+            time.sleep(min_interval)
+        last_enrich_at[0] = now
+
+    # -- GHSA per-CVE --------------------------------------------------------
+    if gh is not None:
+        ghsa_failures = []
+        for cve in watched:
+            pace()
+            try:
+                advisories = gh.per_cve(cve)
+            except FetchError as e:
+                ghsa_failures.append((cve, str(e)))
+                continue  # error never deletes/downgrades existing data
+            for adv in advisories:
+                if adv.get("cve_id") and adv.get("cve_id") != cve:
+                    continue
+                ev = state.upsert_ghsa(adv, now=now)
+                if ev and ev != "UNCHANGED":
+                    _record_event(events, seen, adv.get("cve_id") or cve, ev)
+        if ghsa_failures:
+            note = "; ".join("%s: %s" % f for f in ghsa_failures[:3])
+            state.record_provider_status("ghsa", "FAILED", note)
+            summary["providers"]["ghsa"] = "FAILED (%d/%d lookups failed)" % (
+                len(ghsa_failures), len(watched))
+        else:
+            state.record_provider_status("ghsa", "OK",
+                                         "per-CVE lookups: %d" % len(watched))
+            summary["providers"]["ghsa"] = "OK"
+
+    # -- OSV per-CVE (bounded enrichment + withdrawal channel) ---------------
+    osv_failures = []
+    osv_hits = 0
+    for cve in watched:
+        try:
+            rec = osv_get(transport, cve)
+        except FetchError as e:
+            osv_failures.append((cve, str(e)))
+            continue  # error never deletes/downgrades existing data
+        if rec is None:
+            continue  # clean 404: no OSV record for this CVE
+        osv_hits += 1
+        _snapshot(state_dir, "osv", rec.get("id", cve), rec,
+                  OSV_API + cve, now=now)
+        ev = state.upsert_osv(rec, now=now)
+        if ev and ev != "UNCHANGED":
+            _record_event(events, seen, cve, ev)
+    if osv_failures:
+        note = "; ".join("%s: %s" % f for f in osv_failures[:3])
+        state.record_provider_status("osv", "FAILED", note)
+        summary["providers"]["osv"] = "FAILED (%d/%d lookups failed)" % (
+            len(osv_failures), len(watched))
+    else:
+        state.record_provider_status("osv", "OK",
+                                     "per-CVE lookups: %d (%d records)" %
+                                     (len(watched), osv_hits))
+        summary["providers"]["osv"] = "OK"
+
+
+def _prev_saved_at(state_dir):
+    path = Path(state_dir) / STATE_FILE
+    if not path.is_file():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8")).get("saved_at")
+    except (ValueError, OSError):
+        return None
 
 
 def _is_high_impact(nvd_record):
@@ -756,17 +1030,33 @@ def _is_high_impact(nvd_record):
 # main
 # ---------------------------------------------------------------------------
 
-def main(argv=None):
-    """CLI: `python3 tools/advisory_watch.py [--state-dir DIR] [--json]`."""
+def main(argv=None, transport=None):
+    """CLI: `python3 tools/advisory_watch.py [--state-dir DIR] [--json]`.
+
+    Exit-code contract (see docs/advisory-watch-operations.md): 0 = the
+    run completed and at least one provider succeeded OR there were
+    events/promoted items; 1 = every attempted provider failed with no
+    events and no promotable items (total failure); 2 = the run refused
+    to start or was refused mid-run for a safety reason (concurrent-run
+    lock, stale-coverage gap) — the state was NOT updated.
+    """
     ap = argparse.ArgumentParser(description="ProfSpectra advisory watch collector")
     ap.add_argument("--state-dir", default=WATCH_DIR,
                     help="state directory (default: %s)" % WATCH_DIR)
     ap.add_argument("--json", action="store_true",
                     help="emit the run summary as JSON")
+    ap.add_argument("--ignore-stale", action="store_true",
+                    help="explicitly accept a >%d-day coverage gap "
+                    "between runs instead of failing loudly" % MAX_COVERAGE_GAP_DAYS)
     args = ap.parse_args(argv)
 
     gh = GhCli() if _gh_available() else None
-    summary = run(state_dir=args.state_dir, gh=gh)
+    try:
+        summary = run(transport=transport, state_dir=args.state_dir, gh=gh,
+                      ignore_stale=args.ignore_stale)
+    except RuntimeError as e:
+        print("REFUSED: %s" % e, file=sys.stderr)
+        return 2
 
     if args.json:
         print(json.dumps(summary, indent=2, default=str))
@@ -777,8 +1067,13 @@ def main(argv=None):
         for cve, ev in summary["events"]:
             print("  %-16s %s" % (cve, ev))
         print("  promoted: %s" % ", ".join(i["id"] for i in summary["promoted"]))
-    failed = [p for p, s in summary["providers"].items() if s == "FAILED"]
-    return 1 if failed and not summary["events"] and not summary["promoted"] else 0
+    failed = [p for p, s in summary["providers"].items()
+              if str(s).startswith("FAILED")]
+    ok = [p for p, s in summary["providers"].items()
+          if not str(s).startswith("FAILED")]
+    if not ok and not summary["events"] and not summary["promoted"]:
+        return 1  # total failure: nothing succeeded, nothing collected
+    return 0
 
 
 def _gh_available():

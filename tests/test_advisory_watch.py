@@ -244,29 +244,28 @@ class TestRateLimiting(unittest.TestCase):
 class TestGhCli(unittest.TestCase):
     """GHSA via existing authenticated `gh api` — never stores tokens."""
 
-    def test_paginated_slurp_flattens_pages(self):
+    def test_per_cve_returns_exact_advisories(self):
         seen = []
 
         def runner(args):
             seen.append(args)
-            # real `gh api --paginate` emits concatenated JSON documents
-            return json.dumps([{"ghsa_id": "G1"}]) + "\n" + json.dumps([{"ghsa_id": "G2"}])
+            return json.dumps([
+                {"ghsa_id": "G-1", "cve_id": "CVE-A", "withdrawn_at": None}])
 
         gh = aw.GhCli(runner=runner)
-        advisories = gh.paginated("advisories?per_page=100")
-        self.assertEqual([a["ghsa_id"] for a in advisories], ["G1", "G2"])
-        self.assertIn("--paginate", seen[0])
-        self.assertNotIn("--slurp", seen[0])  # older gh CLIs reject --slurp
+        advisories = gh.per_cve("CVE-A")
+        self.assertEqual([a["ghsa_id"] for a in advisories], ["G-1"])
+        self.assertEqual(seen[0], ["advisories?cve_id=CVE-A"])
+        self.assertNotIn("--paginate", seen[0][0])  # exact per-CVE lookup
 
-    def test_paginated_caps_items(self):
+    def test_per_cve_wraps_single_object(self):
         def runner(args):
-            # two 100-item pages, concatenated like real gh output
-            page = [{"ghsa_id": "G%d" % i} for i in range(100)]
-            return json.dumps(page) + "\n" + json.dumps(page)
+            return json.dumps({"ghsa_id": "G-1", "cve_id": "CVE-A"})
 
         gh = aw.GhCli(runner=runner)
-        advisories = gh.paginated("advisories?per_page=100", max_items=150)
-        self.assertEqual(len(advisories), 150)
+        advisories = gh.per_cve("CVE-A")
+        self.assertEqual(len(advisories), 1)
+        self.assertEqual(advisories[0]["ghsa_id"], "G-1")
 
     def test_gh_failure_raises_fetch_error(self):
         def runner(args):
@@ -274,7 +273,7 @@ class TestGhCli(unittest.TestCase):
 
         gh = aw.GhCli(runner=runner)
         with self.assertRaises(aw.FetchError):
-            gh.paginated("advisories")
+            gh.per_cve("CVE-A")
 
 
 # ---------------------------------------------------------------------------
@@ -474,9 +473,29 @@ class TestPocGate(unittest.TestCase):
             st = aw.State(tmp.path)
             st.upsert_kev(_kev("CVE-A"))
             v = {
-                "reproduction": {"env": "local recreate", "version": "6.0.0"},
-                "control": {"version": "6.2.7.1", "result": "not reproducible"},
-                "independent_review": {"reviewer": "reviewer-profile", "date": "2026-11-15"},
+                "reproduction": {
+                    "env": "local authorized fixture (official release "
+                           "6.0.0 tarball, default config)",
+                    "component": "vulnserver",
+                    "version": "6.0.0",
+                    "affected_version": "6.0.0",
+                    "config": "official defaults (default.xml as shipped)",
+                    "command": "python tools/repro.py --target cve-a "
+                               "--component vulnserver --version 6.0.0",
+                    "result": "issue reproduced: control channel executes "
+                              "the documented PoC sequence",
+                },
+                "control": {
+                    "version": "6.2.7.1",
+                    "result": "not reproducible on the fixed build "
+                              "(same command, exit 0, no effect)",
+                },
+                "independent_review": {
+                    "reviewer": "reviewer-profile",
+                    "verdict": "confirmed: reproduction and fixed control "
+                               "both sound",
+                    "date": "2026-11-15",
+                },
             }
             st.set_poc_confirmed("CVE-A", verification=v)
             self.assertEqual(st.items["CVE-A"]["poc_status"], "CONFIRMED_WORKING")
@@ -486,9 +505,25 @@ class TestPocGate(unittest.TestCase):
             st = aw.State(tmp.path)
             st.upsert_kev(_kev("CVE-A"))
             v = {
-                "reproduction": {"env": "x", "version": "1"},
-                "control": {"version": "2", "result": "no repro"},
-                "independent_review": {"reviewer": "r", "date": "2026-11-15"},
+                "reproduction": {
+                    "env": "local authorized fixture (official release "
+                           "6.0.0 tarball, default config)",
+                    "component": "vulnserver",
+                    "version": "6.0.0",
+                    "affected_version": "6.0.0",
+                    "config": "official defaults",
+                    "command": "python tools/repro.py --target cve-a",
+                    "result": "issue reproduced",
+                },
+                "control": {
+                    "version": "6.2.7.1",
+                    "result": "not reproducible",
+                },
+                "independent_review": {
+                    "reviewer": "r",
+                    "verdict": "confirmed",
+                    "date": "2026-11-15",
+                },
             }
             st.set_poc_confirmed("CVE-A", verification=v)
             st.save()
@@ -501,34 +536,88 @@ class TestPocGate(unittest.TestCase):
 
 
 class TestGhsaEnrichmentBounded(unittest.TestCase):
-    """GHSA enriches only CVEs already under watch — not the whole feed."""
+    """GHSA enriches only CVEs already under watch — per-CVE lookups."""
 
-    def test_unwatched_ghsa_not_upserted(self):
-        kev = {"title": "KEV", "catalogVersion": "1", "dateReleased": "x",
-               "count": 1, "vulnerabilities": [_kev("CVE-A")]}
+    def _kev_catalog(self, today=None):
+        today = today or dt.date.today().isoformat()
+        return {"title": "KEV", "catalogVersion": "1", "dateReleased": "x",
+                "count": 1, "vulnerabilities": [_kev("CVE-A", date_added=today)]}
+
+    def _run(self, tmp, gh, kev=None, nvd_pages=None):
+        kev = kev if kev is not None else self._kev_catalog()
+        empty_nvd = {"resultsPerPage": 0, "startIndex": 0,
+                     "totalResults": 0, "vulnerabilities": []}
         t = RouteTransport()
-        t.add(lambda u: "cisa.gov" in u, [kev])
-        t.add(lambda u: "cves/2.0" in u,
-              [{"resultsPerPage": 0, "startIndex": 0, "totalResults": 0,
-                "vulnerabilities": []}])
+        t.add(lambda u: "cisa.gov" in u, [kev, kev])
+        t.add(lambda u: "cves/2.0" in u, nvd_pages or [empty_nvd, empty_nvd])
+        t.add(lambda u: "api.osv.dev" in u, [{}, {}])  # clean 404 -> None
+        return aw.run(transport=paced(t), gh=gh, state_dir=tmp.path,
+                      enrich_min_interval=0)
+
+    def test_ghsa_lookup_only_for_watched_items(self):
+        """Per-CVE lookups: only watched CVEs are queried and upserted."""
 
         class FakeGh:
-            def paginated(self, endpoint, max_items=None):
-                return [
-                    {"ghsa_id": "G-1", "cve_id": "CVE-A", "severity": "high",
-                     "updated_at": "2026-11-14T00:00:00Z", "withdrawn_at": None},
-                    {"ghsa_id": "G-2", "cve_id": "CVE-UNRELATED",
-                     "severity": "critical", "updated_at": "2026-11-14T00:00:00Z",
-                     "withdrawn_at": None},
-                ]
+            def __init__(self):
+                self.asked = []
 
+            def per_cve(self, cve_id):
+                self.asked.append(cve_id)
+                if cve_id == "CVE-A":
+                    return [{"ghsa_id": "G-1", "cve_id": "CVE-A",
+                             "severity": "high",
+                             "updated_at": "2026-11-14T00:00:00Z",
+                             "withdrawn_at": None}]
+                return []
+
+        gh = FakeGh()
         with TempStateDir() as tmp:
-            aw.run(transport=paced(t), gh=FakeGh(), state_dir=tmp.path)
+            self._run(tmp, gh)
             state = json.loads((tmp.path / "state.json").read_text())
             self.assertIn("CVE-A", state["items"])
-            self.assertNotIn("CVE-UNRELATED", state["items"])  # bounded
-            self.assertEqual(
-                state["items"]["CVE-A"]["ghsa_ids"], ["G-1"])
+            self.assertEqual(gh.asked, ["CVE-A"])  # only the watched CVE
+            self.assertEqual(state["items"]["CVE-A"]["ghsa_ids"], ["G-1"])
+
+    def test_ghsa_failure_does_not_delete_existing_data(self):
+        """A failed per-CVE GHSA lookup marks the provider FAILED but
+        never deletes or downgrades existing entries."""
+
+        class FailingGh:
+            def per_cve(self, cve_id):
+                raise aw.FetchError("gh api failed: auth required")
+
+        with TempStateDir() as tmp:
+            run1 = self._run(tmp, FakeGh_ok())  # seed G-1 on CVE-A
+            with TempStateDir() as tmp2:  # fresh: prove old data survives
+                pass
+            run2 = self._run(tmp, FailingGh())
+            state = json.loads((tmp.path / "state.json").read_text())
+            self.assertTrue(str(run2["providers"]["ghsa"]).startswith("FAILED"))
+            self.assertEqual(state["items"]["CVE-A"]["ghsa_ids"], ["G-1"])
+            self.assertEqual(state["provider_status"]["ghsa"]["status"],
+                             "FAILED")
+
+    def test_ghsa_withdrawal_beyond_window_is_found_per_cve(self):
+        """Regression (review finding 2): the old global window query
+        silently truncated at 1000 items — a watched item past the cap
+        was missed.  Per-CVE lookup must find a withdrawal regardless of
+        where it sits in the global feed."""
+
+        class FakeGh:
+            def per_cve(self, cve_id):
+                if cve_id == "CVE-A":
+                    return [{"ghsa_id": "G-1", "cve_id": "CVE-A",
+                             "severity": "high",
+                             "updated_at": "2026-11-14T00:00:00Z",
+                             "withdrawn_at": "2026-11-14T00:00:00Z"}]
+                return []
+
+        with TempStateDir() as tmp:
+            run1 = self._run(tmp, FakeGh())
+            events = [e for e in run1["events"]]
+            self.assertIn(("CVE-A", "WITHDRAWN"), events)
+            state = json.loads((tmp.path / "state.json").read_text())
+            self.assertEqual(state["items"]["CVE-A"]["status"], "WITHDRAWN")
 
     def test_identical_ghsa_rerun_is_unchanged(self):
         """GHSA enrichment must be idempotent like the other providers.
@@ -537,26 +626,373 @@ class TestGhsaEnrichmentBounded(unittest.TestCase):
         state must not emit a spurious UPDATED event (and must not
         churn last_change) for records the provider did not modify.
         """
-        kev = {"title": "KEV", "catalogVersion": "1", "dateReleased": "x",
-               "count": 1, "vulnerabilities": [_kev("CVE-A")]}
-        t = RouteTransport()
-        t.add(lambda u: "cisa.gov" in u, [kev, kev])
-        t.add(lambda u: "cves/2.0" in u,
-              [{"resultsPerPage": 0, "startIndex": 0, "totalResults": 0,
-                "vulnerabilities": []}] * 2)
 
         class FakeGh:
-            def paginated(self, endpoint, max_items=None):
-                return [
-                    {"ghsa_id": "G-1", "cve_id": "CVE-A", "severity": "high",
-                     "updated_at": "2026-11-14T00:00:00Z", "withdrawn_at": None},
-                ]
+            def per_cve(self, cve_id):
+                if cve_id == "CVE-A":
+                    return [{"ghsa_id": "G-1", "cve_id": "CVE-A",
+                             "severity": "high",
+                             "updated_at": "2026-11-14T00:00:00Z",
+                             "withdrawn_at": None}]
+                return []
 
         with TempStateDir() as tmp:
-            run1 = aw.run(transport=paced(t), gh=FakeGh(), state_dir=tmp.path)
-            run2 = aw.run(transport=paced(t), gh=FakeGh(), state_dir=tmp.path)
+            run1 = self._run(tmp, FakeGh())
+            run2 = self._run(tmp, FakeGh())
         self.assertEqual(run2["events"], [],
                          "identical GHSA data must not re-emit events")
+
+
+class FakeGh_ok:
+    def per_cve(self, cve_id):
+        if cve_id == "CVE-A":
+            return [{"ghsa_id": "G-1", "cve_id": "CVE-A", "severity": "high",
+                      "updated_at": "2026-11-14T00:00:00Z",
+                      "withdrawn_at": None}]
+        return []
+
+
+class TestWithdrawalIdempotency(unittest.TestCase):
+    """Regression tests for the review findings (defender t_df5e3b1b).
+
+    Each test reproduces a probe from the independent review:
+    P1 (withdrawal rerun non-idempotent), P2 (stale NEW status),
+    P5 (hollow PoC gate legs), plus the OSV dead-code and GHSA
+    truncation findings.
+    """
+
+    def test_identical_withdrawn_rerun_is_unchanged(self):
+        """P1: an unchanged already-withdrawn record yields no new event
+        and no duplicated withdrawn evidence on rerun."""
+        with TempStateDir() as tmp:
+            st = aw.State(tmp.path)
+            st.upsert_kev(_kev("CVE-A"))
+            adv = {"ghsa_id": "G-x", "cve_id": "CVE-A",
+                   "updated_at": "2026-11-14T00:00:00Z",
+                   "withdrawn_at": "2026-11-14T00:00:00Z", "severity": "high"}
+            ev1 = st.upsert_ghsa(dict(adv))
+            ev2 = st.upsert_ghsa(dict(adv))  # identical rerun
+            ev3 = st.upsert_ghsa(dict(adv))
+            item = st.items["CVE-A"]
+            self.assertEqual(ev1, "WITHDRAWN")
+            self.assertEqual(ev2, "UNCHANGED",
+                             "identical withdrawn rerun must be UNCHANGED")
+            self.assertEqual(ev3, "UNCHANGED")
+            self.assertEqual(item.get("withdrawn_evidence"),
+                             ["G-x@2026-11-14T00:00:00Z"],
+                             "withdrawn_evidence must not be duplicated")
+
+    def test_modified_item_cannot_remain_status_new(self):
+        """P2: an NVD-modified item transitions truthfully — status NEW
+        only until the first change, UPDATED after."""
+        with TempStateDir() as tmp:
+            st = aw.State(tmp.path)
+            st.upsert_nvd(_nvd("CVE-B", modified="2026-11-01T00:00:00.000"))
+            self.assertEqual(st.items["CVE-B"]["status"], "NEW")
+            ev = st.upsert_nvd(_nvd("CVE-B", modified="2026-11-05T00:00:00.000"))
+            status = st.items["CVE-B"]["status"]
+            self.assertEqual(ev, "UPDATED")
+            self.assertEqual(status, "UPDATED",
+                             "a modified item must not remain status NEW")
+
+    def test_kev_withdrawn_state_survives_nvd_update(self):
+        """KEV/withdrawn states are never broken by the transition fix."""
+        with TempStateDir() as tmp:
+            st = aw.State(tmp.path)
+            st.upsert_kev(_kev("CVE-A"))
+            st.upsert_nvd(_nvd("CVE-A", modified="2026-11-01T00:00:00.000"))
+            self.assertEqual(st.items["CVE-A"]["status"], "ACTIVELY_EXPLOITED")
+            st.upsert_ghsa({"ghsa_id": "G-x", "cve_id": "CVE-A",
+                           "updated_at": "2026-11-14T00:00:00Z",
+                           "withdrawn_at": "2026-11-14T00:00:00Z"})
+            self.assertEqual(st.items["CVE-A"]["status"], "WITHDRAWN")
+            # a later NVD modification must not silently un-withdraw
+            st.upsert_nvd(_nvd("CVE-A", modified="2026-11-20T00:00:00.000"))
+            self.assertEqual(st.items["CVE-A"]["status"], "WITHDRAWN")
+
+    def test_one_logical_event_per_record_per_run(self):
+        """Live probe: CVE-2026-114713 got events [NEW, NEW] in one run
+        (KEV upsert + NVD upsert of the same record).  One logical event
+        per record per run: the second NEW is suppressed."""
+        today = dt.date.today().isoformat()
+        kev = {"title": "KEV", "catalogVersion": "1", "dateReleased": "x",
+               "count": 1, "vulnerabilities": [_kev("CVE-A", date_added=today)]}
+        rec = _nvd("CVE-A", modified=today + "T00:00:00.000")
+        envelope = {"resultsPerPage": 1, "startIndex": 0, "totalResults": 1,
+                    "vulnerabilities": [{"cve": rec}]}
+        t = RouteTransport()
+        t.add(lambda u: "cisa.gov" in u, [kev])
+        t.add(lambda u: "cves/2.0" in u, [envelope])
+        t.add(lambda u: "api.osv.dev" in u, [{}])  # clean 404 -> None
+        with TempStateDir() as tmp:
+            run1 = aw.run(transport=paced(t), gh=None, state_dir=tmp.path,
+                          enrich_min_interval=0)
+        news = [e for e in run1["events"] if e[1] == "NEW"]
+        self.assertEqual(news, [("CVE-A", "NEW")],
+                         "one NEW per record per run, not one per provider")
+
+    def test_poc_gate_rejects_hollow_legs(self):
+        """P5: semantically empty legs (mock env, control={x:0}, review
+        ={y:0}) must fail closed, not pass on mere presence."""
+        with TempStateDir() as tmp:
+            st = aw.State(tmp.path)
+            st.upsert_kev(_kev("CVE-C"))
+            with self.assertRaises(aw.EvidenceError):
+                st.set_poc_confirmed("CVE-C", {
+                    "reproduction": {"env": "mock"},
+                    "control": {"x": 0},
+                    "independent_review": {"y": 0}})
+            # gate refused before mutating: status is whatever it was
+            # before the failed attempt (no CONFIRMED_WORKING grant)
+            self.assertNotEqual(st.items["CVE-C"]["poc_status"],
+                                "CONFIRMED_WORKING")
+
+    def test_poc_gate_rejects_same_version_control(self):
+        """A control on the same version as the reproduction proves
+        nothing and must fail closed."""
+        with TempStateDir() as tmp:
+            st = aw.State(tmp.path)
+            st.upsert_kev(_kev("CVE-C"))
+            with self.assertRaises(aw.EvidenceError):
+                st.set_poc_confirmed("CVE-C", {
+                    "reproduction": {"env": "local fixture", "component": "c",
+                                    "version": "6.0.0",
+                                    "affected_version": "6.0.0",
+                                    "config": "defaults",
+                                    "command": "cmd", "result": "repro"},
+                    "control": {"version": "6.0.0", "result": "no repro"},
+                    "independent_review": {"reviewer": "r",
+                                            "verdict": "confirmed"}})
+
+    def test_run_lock_refuses_concurrent_runs(self):
+        """R2: a concurrent run refuses to start instead of interleaving
+        state saves (lost updates)."""
+        with TempStateDir() as tmp:
+            kev = {"title": "KEV", "catalogVersion": "1", "dateReleased": "x",
+                   "count": 0, "vulnerabilities": []}
+            t = RouteTransport()
+            t.add(lambda u: "cisa.gov" in u, [kev])
+            lock = tmp.path / "run.lock"
+            lock.parent.mkdir(parents=True, exist_ok=True)
+            lock.write_text("123\n")
+            with self.assertRaises(RuntimeError):
+                aw.run(transport=paced(t), gh=None, state_dir=tmp.path)
+            # the refused run must not have removed the incumbent lock
+            self.assertTrue(lock.exists())
+
+    def test_stale_coverage_gap_fails_loudly(self):
+        """R3: a previous run older than MAX_COVERAGE_GAP_DAYS makes the
+        run refuse loudly (the fixed 3-day windows cannot cover the
+        gap) instead of silently missing modifications/withdrawals."""
+        with TempStateDir() as tmp:
+            stale = "2026-10-01T00:00:00Z"
+            payload = {"saved_at": stale, "cursors": {"last_run_at": stale},
+                       "provider_status": {}, "items": {}}
+            tmp.path.mkdir(parents=True, exist_ok=True)
+            (tmp.path / "state.json").write_text(json.dumps(payload))
+            kev = {"title": "KEV", "catalogVersion": "1", "dateReleased": "x",
+                   "count": 0, "vulnerabilities": []}
+            t = RouteTransport()
+            t.add(lambda u: "cisa.gov" in u, [kev])
+            with self.assertRaises(RuntimeError):
+                aw.run(transport=paced(t), gh=None, state_dir=tmp.path)
+            # ignore_stale accepts the gap explicitly
+            aw.run(transport=paced(t), gh=None, state_dir=tmp.path,
+                   ignore_stale=True, enrich_min_interval=0)
+
+    def test_compact_never_drops_poc_linked_entries(self):
+        """R4: transient items carrying PoC links are never dropped by
+        compaction — they are pending verification evidence."""
+        with TempStateDir() as tmp:
+            st = aw.State(tmp.path)
+            old = "2026-10-01T00:00:00Z"
+            st.upsert_nvd(_nvd("CVE-POC"), now=old)
+            st.record_poc_link("CVE-POC", {"repo": "o/p", "url": "u"})
+            st.compact(retention_days=3, now="2026-11-14T00:00:00Z")
+            self.assertIn("CVE-POC", st.items,
+                          "PoC-linked items must survive compaction")
+
+
+class TestOsvEnrichment(unittest.TestCase):
+    """Bounded per-watched-CVE OSV enrichment + withdrawal (finding 1)."""
+
+    def _osv(self, cve, **kw):
+        base = {"id": cve, "modified": "2026-11-14T00:00:00.000Z",
+                "published": "2026-11-01T00:00:00.000Z",
+                "summary": "osv summary", "aliases": ["GHSA-x"],
+                "references": [{"url": "https://osv.dev"}]}
+        base.update(kw)
+        return base
+
+    def test_osv_enriches_watched_item(self):
+        with TempStateDir() as tmp:
+            st = aw.State(tmp.path)
+            st.upsert_kev(_kev("CVE-A"))
+            ev = st.upsert_osv(self._osv("CVE-A"))
+            self.assertEqual(ev, "UPDATED")
+            item = st.items["CVE-A"]
+            self.assertEqual(item["osv_summary"], "osv summary")
+            self.assertIn({"provider": "osv", "url": aw.OSV_API + "CVE-A"},
+                          item["sources"])
+
+    def test_osv_withdrawal_flips_status(self):
+        with TempStateDir() as tmp:
+            st = aw.State(tmp.path)
+            st.upsert_kev(_kev("CVE-A"))
+            ev = st.upsert_osv(self._osv(
+                "CVE-A", withdrawn="2026-11-15T00:00:00.000Z"))
+            self.assertEqual(ev, "WITHDRAWN")
+            self.assertEqual(st.items["CVE-A"]["status"], "WITHDRAWN")
+            self.assertEqual(st.items["CVE-A"]["withdrawn_evidence"],
+                             ["CVE-A@2026-11-15T00:00:00.000Z"])
+
+    def test_osv_identical_rerun_is_unchanged(self):
+        with TempStateDir() as tmp:
+            st = aw.State(tmp.path)
+            st.upsert_kev(_kev("CVE-A"))
+            rec = self._osv("CVE-A")
+            st.upsert_osv(dict(rec))
+            ev = st.upsert_osv(dict(rec))
+            self.assertEqual(ev, "UNCHANGED")
+
+    def test_run_enriches_osv_per_watched_cve(self):
+        """run() wires OSV per-CVE lookups for watched items (P4)."""
+        today = dt.date.today().isoformat()
+        kev = {"title": "KEV", "catalogVersion": "1", "dateReleased": "x",
+               "count": 1, "vulnerabilities": [_kev("CVE-A", date_added=today)]}
+        empty_nvd = {"resultsPerPage": 0, "startIndex": 0,
+                     "totalResults": 0, "vulnerabilities": []}
+        osv_rec = self._osv("CVE-A")
+        t = RouteTransport()
+        t.add(lambda u: "cisa.gov" in u, [kev, kev])
+        t.add(lambda u: "cves/2.0" in u, [empty_nvd, empty_nvd])
+        t.add(lambda u: "api.osv.dev" in u,
+              [osv_rec, osv_rec])  # two runs -> idempotent second pass
+        with TempStateDir() as tmp:
+            run1 = aw.run(transport=paced(t), gh=None, state_dir=tmp.path,
+                          enrich_min_interval=0)
+            state = json.loads((tmp.path / "state.json").read_text())
+            self.assertEqual(run1["providers"]["osv"], "OK")
+            self.assertIn("osv_summary", state["items"]["CVE-A"])
+            # snapshot stored under evidence/osv/
+            files = list((tmp.path / "evidence" / "osv").glob("*.json"))
+            self.assertTrue(files, "OSV evidence snapshot missing")
+
+    def test_osv_failure_does_not_delete_existing_data(self):
+        with TempStateDir() as tmp:
+            st = aw.State(tmp.path)
+            st.upsert_kev(_kev("CVE-A"))
+            st.upsert_osv(self._osv("CVE-A"))
+            st.save()
+            today = dt.date.today().isoformat()
+            kev = {"title": "KEV", "catalogVersion": "1", "dateReleased": "x",
+                   "count": 1, "vulnerabilities": [_kev("CVE-A",
+                                                         date_added=today)]}
+            empty_nvd = {"resultsPerPage": 0, "startIndex": 0,
+                         "totalResults": 0, "vulnerabilities": []}
+            t = RouteTransport()
+            t.add(lambda u: "cisa.gov" in u, [kev])
+            t.add(lambda u: "cves/2.0" in u, [empty_nvd])
+            t.add(lambda u: "api.osv.dev" in u,
+                  [aw.FetchError("osv down")])
+            run1 = aw.run(transport=paced(t), gh=None, state_dir=tmp.path,
+                          enrich_min_interval=0)
+            state = json.loads((tmp.path / "state.json").read_text())
+            self.assertTrue(str(run1["providers"]["osv"]).startswith("FAILED"))
+            self.assertEqual(state["items"]["CVE-A"]["osv_summary"],
+                             "osv summary")  # untouched by the failure
+
+
+class TestExitCodeContract(unittest.TestCase):
+    """P3: exit-code semantics — total provider failure with nothing
+    already collected exits 1; partial failure exits 0."""
+
+    def _main(self, transport):
+        import io, contextlib
+        with TempStateDir() as tmp:
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                code = aw.main(["--state-dir", str(tmp.path)],
+                               transport=transport)
+        return code
+
+    def test_total_failure_with_empty_state_exits_1(self):
+        t = RouteTransport()
+        t.add(lambda u: True, [aw.FetchError("all providers down")])
+        transport = aw.Transport(transport=t, sleeper=lambda s: None,
+                                 clock=lambda: 0.0, min_interval=0)
+        code = self._main(transport)
+        self.assertEqual(code, 1)
+
+    def test_partial_failure_exits_0(self):
+        """kev OK + nvd FAILED + empty state -> 0 (docs: partial failure
+        is a successful run that marks the provider FAILED)."""
+
+        class KevOnly:
+            def get_bytes(self, url):
+                if "cisa.gov" in url:
+                    return json.dumps({
+                        "title": "KEV", "catalogVersion": "1",
+                        "dateReleased": "x", "count": 0,
+                        "vulnerabilities": []}).encode()
+                raise aw.FetchError("nvd down")
+
+        transport = aw.Transport(transport=KevOnly(), sleeper=lambda s: None,
+                                 clock=lambda: 0.0, min_interval=0)
+        code = self._main(transport)
+        self.assertEqual(code, 0)
+
+    def test_refused_run_exits_2_without_touching_state(self):
+        """Lock refusal / stale-gap refusal exit 2; state unchanged."""
+        with TempStateDir() as tmp:
+            tmp.path.mkdir(parents=True, exist_ok=True)
+            (tmp.path / "run.lock").write_text("999\n")
+            import io, contextlib
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                code = aw.main(["--state-dir", str(tmp.path)])
+            self.assertEqual(code, 2)
+            self.assertFalse((tmp.path / "state.json").exists(),
+                             "refused run must not write state")
+
+
+class TestEvidenceFidelityClaims(unittest.TestCase):
+    """Finding 6: snapshots are canonicalized JSON, never claimed
+    byte-verbatim; SHA-256 covers exactly the stored bytes."""
+
+    def test_snapshot_is_canonicalized_json_claim_is_true(self):
+        kev = {"title": "KEV", "catalogVersion": "9", "dateReleased": "x",
+               "count": 0, "vulnerabilities": []}
+        t = RouteTransport()
+        t.add(lambda u: "cisa.gov" in u, [kev])
+        with TempStateDir() as tmp:
+            aw.run(transport=paced(t), gh=None, state_dir=tmp.path)
+            files = [p for p in (tmp.path / "evidence" / "kev").glob("*.json")
+                     if not p.name.endswith(".sha256.json")]
+            self.assertEqual(len(files), 1)
+            body = files[0].read_bytes()
+            # canonical form: sorted keys, deterministic re-serialization
+            reparsed = json.loads(body)
+            self.assertEqual(
+                body, json.dumps(reparsed, indent=2, sort_keys=True)
+                .encode("utf-8"),
+                "stored snapshot must be the canonicalized form of its "
+                "own content")
+            meta = json.loads(files[0].with_suffix(".sha256.json")
+                              .read_text())
+            self.assertEqual(meta["sha256"],
+                             hashlib.sha256(body).hexdigest())
+
+    def test_source_docstring_claims_canonicalized_not_verbatim(self):
+        src = (ROOT / "tools" / "advisory_watch.py").read_text()
+        self.assertIn("CANONICALIZED", src)
+        self.assertNotIn("verbatim provider JSON + SHA-256", src)
+        ops = (ROOT / "docs" / "advisory-watch-operations.md").read_text()
+        self.assertNotIn("verbatim provider JSON", ops)
+        self.assertIn("canonicalized", ops)
+
+
+import hashlib  # noqa: E402  (used above)
 
 
 class TestStateBounded(unittest.TestCase):
@@ -570,8 +1006,16 @@ class TestStateBounded(unittest.TestCase):
             st.upsert_kev(_kev("CVE-KEV"))                      # durable
             st.upsert_nvd(_nvd("CVE-WD"), now=old)
             st.items["CVE-WD"]["status"] = "WITHDRAWN"         # durable
-            v = {"reproduction": {"a": 1}, "control": {"b": 2},
-                 "independent_review": {"c": 3}}
+            v = {
+                "reproduction": {
+                    "env": "local authorized fixture", "component": "vulnserver",
+                    "version": "6.0.0", "affected_version": "6.0.0",
+                    "config": "official defaults", "command": "repro-cmd",
+                    "result": "issue reproduced"},
+                "control": {"version": "6.2.7.1", "result": "no repro"},
+                "independent_review": {"reviewer": "r", "verdict": "confirmed",
+                                       "date": "2026-11-15"},
+            }
             st.upsert_nvd(_nvd("CVE-VERIFIED"), now=old)
             st.set_poc_confirmed("CVE-VERIFIED", verification=v)  # durable
             st.compact(retention_days=3, now="2026-11-14T00:00:00Z")
