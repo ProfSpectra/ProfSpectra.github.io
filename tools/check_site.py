@@ -271,8 +271,26 @@ check("assets: profspectra partial present",
       (ROOT / "_sass/profspectra.scss").is_file())
 check("assets: theme.min.js present", (SITE / "assets/js/dist/theme.min.js").is_file())
 check("assets: app.min.js present (pwa)", (SITE / "app.min.js").is_file())
-check("assets: sw.min.js present", (SITE / "sw.min.js").is_file())
+check("assets: sw.min.js present (pwa)", (SITE / "sw.min.js").is_file())
 check("assets: search index built", (SITE / "feed.xml").is_file())
+
+# ---------------------------------------------------------------------------
+# 9b. resting search chrome: the 44px `#topbar .btn` rule (specificity 0,2,0)
+# must not resurrect the theme's closed-state topbar controls. The resting
+# rules below must out-rank it, and must NOT use !important so the theme's
+# `d-block`/`d-flex` toggle utilities still show the controls during search.
+# Computed-style verification (open/cancel at desktop+mobile) lives in
+# tools/check_search_chrome.js (needs a local server + Playwright).
+# ---------------------------------------------------------------------------
+css = (SITE / "assets/css/jekyll-theme-chirpy.css").read_text(encoding="utf-8")
+_cancel_rule = re.search(r"#topbar #search-cancel:not\(\.d-block\)\{[^}]*\}", css)
+check("search-chrome: resting rule for #search-cancel compiled",
+      _cancel_rule is not None)
+check("search-chrome: resting rules for topbar triggers compiled (>=850px)",
+      re.search(r"@media ?\(min-width: 850px\)\{#topbar #search-trigger:not\(\.d-none\),#topbar #sidebar-trigger:not\(\.d-none\)\{display:none\}", css) is not None)
+check("search-chrome: resting rules do not use !important",
+      _cancel_rule is not None and "!important" not in _cancel_rule.group(0))
+
 
 # ---------------------------------------------------------------------------
 # 10. no fabricated / default metadata

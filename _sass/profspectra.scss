@@ -220,6 +220,15 @@ input:focus-visible,
   border-radius: 2px;
 }
 
+// Bootstrap's `.btn:focus-visible{outline:0;box-shadow:...}` (0,2,0) outranks
+// the rule above (0,1,1), leaving focused topbar buttons with no indicator.
+// `.btn.btn` lifts specificity to 0,2,0 and wins on source order — keep it
+// free of !important so a genuine component-level override still can.
+.btn.btn:focus-visible {
+  outline: 2px solid var(--ps-accent);
+  outline-offset: 2px;
+}
+
 #sidebar .btn,
 #topbar .btn,
 #back-to-top,
@@ -229,6 +238,23 @@ input:focus-visible,
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+// Chirpy rests #search-cancel at `display:none` (specificity 0,1,0) but the
+// 44px rule above (`#topbar .btn`, 0,2,0) outranks it, leaving a visible
+// Cancel beside closed search. Rest the theme's own closed state more
+// strongly; the theme's `d-block` `!important` utility still wins when
+// search is active. The same clash hits #search-trigger/#sidebar-trigger,
+// which the theme only hides at >=850px, so scope those to desktop.
+#topbar #search-cancel:not(.d-block) {
+  display: none;
+}
+
+@media (min-width: 850px) {
+  #topbar #search-trigger:not(.d-none),
+  #topbar #sidebar-trigger:not(.d-none) {
+    display: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -519,14 +545,16 @@ div.highlight {
   margin: 0 0 0.3rem;
 
   a {
-    text-decoration: none;
     color: var(--ps-ink);
+    text-decoration: underline;
+    text-decoration-color: var(--ps-rule-strong);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 4px;
 
     &:hover,
     &:focus-visible {
       color: var(--ps-accent);
-      text-decoration: underline;
-      text-underline-offset: 4px;
+      text-decoration-color: var(--ps-accent);
     }
   }
 }
