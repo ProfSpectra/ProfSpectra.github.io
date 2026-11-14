@@ -1,0 +1,74 @@
+# ProfSpectra portfolio landing content.
+# This single file drives the home page hero, focus areas, featured
+# writeups, projects and contact links. Edit here — no layout changes needed.
+# Posts keep their own metadata in their Markdown front matter.
+
+kicker: "Security writeups & field notes"
+
+headline: "Putra Kaha takes machines and web apps apart, then writes down exactly how."
+
+lede: >-
+  ProfSpectra is a working notebook of Hack The Box and PwnTillDawn
+  walkthroughs, reproducible exploit paths, and the occasional cheatsheet —
+  written so you can re-run every step.
+
+cta_primary: "Read the writeups"
+cta_secondary: "About & contact"
+
+focus_heading: "What this site covers"
+
+focus_areas:
+  - name: "Boot2Root walkthroughs"
+    note: "Full kill chains on HTB and PwnTillDawn machines — recon to root, with every command and screenshot."
+  - name: "Reproducible exploit paths"
+    note: "Each finding written to re-run — environment notes, payloads, and the exact steps that worked."
+  - name: "Cheatsheets"
+    note: "Short, copy-pasteable reference for file upload tricks and stable shells."
+
+featured_heading: "Selected writeups"
+
+# Featured posts are looked up by URL, so their title, date and description
+# always come from the post's own front matter. `note` is one line of curation.
+featured_writeups:
+  - path: /posts/Hack-The-Box-Cohort/
+    note: "SSRF into an unauthenticated WebSocket PTY, then a VsockDrop kernel underflow to root."
+  - path: /posts/Hack-The-Box-DoubleTake/
+    note: "CVE-2026-123158 SSHole plus CVE-2026-41567 Docker archive traversal, chained to root."
+  - path: /posts/Pwntilldawn-Brandy/
+    note: "A Difficult-rated box — SQLi in Dolibarr through OpenSMTPD RCE and CVE-2021-3493."
+  - path: /posts/Hack-The-Box-Management/
+    note: "Web foothold through to root on an Ubuntu host — the most recent walkthrough."
+
+latest_heading: "Latest writing"
+latest_count: 4
+all_writeups_label: "All writeups"
+archive_label: "Full archive"
+
+projects_heading: "Code & projects"
+
+# Only real, public repositories.
+projects:
+  - name: "ProfSpectra.github.io"
+    url: https://github.com/ProfSpectra/ProfSpectra.github.io
+    note: "This site — Jekyll source for the writeups and cheatsheets you are reading."
+  - name: "Estimating-PI"
+    url: https://github.com/ProfSpectra/Estimating-PI
+    note: "A small numerical-methods exercise estimating the value of pi."
+  - name: "CVE-POC"
+    url: https://github.com/ProfSpectra/CVE-POC
+    note: "A collection of CVE proof-of-concept notes and references."
+
+contact_heading: "Get in touch"
+contact_lede: >-
+  Questions about a writeup, a correction to a technique, or just want to
+  compare notes? All of these reach me directly.
+
+contact_links:
+  - label: "GitHub — ProfSpectra"
+    url: https://github.com/ProfSpectra
+  - label: "LinkedIn — Putra Kaha"
+    url: https://www.linkedin.com/in/putra-kaha
+  - label: "X — @ros_putra"
+    url: https://x.com/ros_putra
+  - label: "Email — putraros1226@gmail.com"
+    url: mailto:putraros1226@gmail.com

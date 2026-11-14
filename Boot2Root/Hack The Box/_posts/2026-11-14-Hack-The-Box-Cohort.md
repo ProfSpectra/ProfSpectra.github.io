@@ -5,7 +5,10 @@ description: A Hack The Box Linux Boot2Root Challenge - by ProfSpectra
 tags: HackTheBox Linux Boot2Root
 media_subpath: /assets/img/writeups/Hack The Box/Cohort/
 image:
-  path: cohort_solved.png
+  path: /assets/img/writeups/Hack The Box/Cohort/cohort_solved.png
+  alt: Cohort machine completion banner showing user and root flags
+  width: 890
+  height: 308
 ---
 
 ## At a glance

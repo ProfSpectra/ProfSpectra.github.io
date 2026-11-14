@@ -1,6 +1,6 @@
 ---
 icon: fas fa-book
-order: 3
+order: 4
 ---
 
 <div class="content">
@@ -45,8 +45,7 @@ order: 3
       <!-- .card-header -->
 
       <!-- posts under this sub-category -->
-      <div id="l_{{ sub | slugify }}" class="collapse show"
-           aria-expanded="true">
+      <div id="l_{{ sub | slugify }}" class="collapse show">
         {% if group_posts.size > 0 %}
           <ul class="list-group">
             {% for post in group_posts %}

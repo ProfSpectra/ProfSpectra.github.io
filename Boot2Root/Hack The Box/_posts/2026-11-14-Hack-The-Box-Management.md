@@ -5,7 +5,10 @@ description: A Hack The Box Boot2Root Challenge Rated Easy - by ProfSpectra
 tags: HackTheBox Linux Boot2Root Easy
 media_subpath: /assets/img/writeups/Hack The Box/Management/
 image:
-  path: management_solved.png
+  path: /assets/img/writeups/Hack The Box/Management/management_solved.png
+  alt: Management machine completion banner showing user and root flags
+  width: 884
+  height: 306
 ---
 
 ## At a glance

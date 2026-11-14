@@ -1,43 +1,92 @@
-# Chirpy Starter
+# ProfSpectra
 
-[![Gem Version](https://img.shields.io/gem/v/jekyll-theme-chirpy)][gem]&nbsp;
-[![GitHub license](https://img.shields.io/github/license/cotes2020/chirpy-starter.svg?color=blue)][mit]
+Source for [profspectra.github.io](https://profspectra.github.io) — Putra Kaha's security
+writeups and cheatsheets. Jekyll + the Chirpy theme (gem, not a fork), published as
+plain Markdown. Published under the MIT License (see `LICENSE`).
 
-When installing the [**Chirpy**][chirpy] theme through [RubyGems.org][gem], Jekyll can only read files in the folders
-`_data`, `_layouts`, `_includes`, `_sass` and `assets`, as well as a small part of options of the `_config.yml` file
-from the theme's gem. If you have ever installed this theme gem, you can use the command
-`bundle info --path jekyll-theme-chirpy` to locate these files.
+## Editing the site
 
-The Jekyll team claims that this is to leave the ball in the user’s court, but this also results in users not being
-able to enjoy the out-of-the-box experience when using feature-rich themes.
+### The home page (no HTML required)
 
-To fully use all the features of **Chirpy**, you need to copy the other critical files from the theme's gem to your
-Jekyll site. The following is a list of targets:
+Everything on the landing page — hero copy, focus areas, featured writeups, project
+links, contact links — lives in **one file: [`_data/portfolio.yml`](_data/portfolio.yml)**.
+Edit the YAML, commit, and the home page rebuilds from it. Featured writeups are
+referenced by their URL, so their title, date and description always stay in sync with
+the post itself.
 
-```shell
-.
-├── _config.yml
-├── _plugins
-├── _tabs
-└── index.html
+### Writing a post
+
+Posts are plain Markdown under a category folder, e.g.:
+
+```
+Boot2Root/Hack The Box/_posts/2026-11-14-Hack-The-Box-Example.md
 ```
 
-To save you time, and also in case you lose some files while copying, we extract those files/configurations of the
-latest version of the **Chirpy** theme and the [CD][CD] workflow to here, so that you can start writing in minutes.
+Required front matter:
 
-## Usage
+```yaml
+---
+title: "Hack The Box - Example"
+description: One-line summary shown on the home page and in search results.
+tags: HackTheBox Linux Boot2Root Easy   # tags drive the chips on index pages
+media_subpath: /assets/img/writeups/Example/   # for body images
+image:
+  path: /assets/img/writeups/Example/example_solved.png   # full root-relative path
+  alt: What the cover screenshot actually shows
+  width: 886
+  height: 300   # must match the real PNG dimensions
+---
+```
 
-Check out the [theme's docs](https://github.com/cotes2020/jekyll-theme-chirpy/wiki).
+Put screenshots under `assets/img/writeups/<machine>/`. Body images can use short
+names (resolved against `media_subpath`); the **cover `image.path` must be the full
+root-relative path** so `og:image` and JSON-LD point at the real file.
 
-## Contributing
+### Pages and navigation
 
-This repository is automatically updated with new releases from the theme repository. If you encounter any issues or want to contribute to its improvement, please visit the [theme repository][chirpy] to provide feedback.
+`_tabs/*.md` are the pages in the sidebar (order = `order:`). To hide a section that
+has no posts yet, set `published: false` in its tab file — the posts still build, only
+the nav entry disappears. To restore `Advisory`/`PoC` later:
 
-## License
+```bash
+git checkout origin/main -- _tabs/advisory.md _tabs/poc.md
+# then remove the `published: false` line
+```
 
-This work is published under [MIT][mit] License.
+### Styles
 
-[gem]: https://rubygems.org/gems/jekyll-theme-chirpy
-[chirpy]: https://github.com/cotes2020/jekyll-theme-chirpy/
-[CD]: https://en.wikipedia.org/wiki/Continuous_deployment
-[mit]: https://github.com/cotes2020/chirpy-starter/blob/master/LICENSE
+The site's look is two files: [`_sass/profspectra.scss`](_sass/profspectra.scss)
+(palette, type, components) and
+[`assets/css/jekyll-theme-chirpy.scss`](assets/css/jekyll-theme-chirpy.scss) (the
+theme's documented extension point that imports it). The theme itself is never
+edited — upgrades stay clean.
+
+Overridden theme files (kept intentionally minimal, each with a comment saying what
+changed):
+
+- `_layouts/home.html` — portfolio landing
+- `_includes/head.html` — viewport/zoom fix, paper/ink theme colors
+- `_includes/sidebar.html` — monogram, `aria-current="page"`, labelled nav
+
+## Preview, build, test
+
+Local Ruby is provided via `profspectra-ruby` (deps in `vendor/bundle`):
+
+```bash
+# build (production)
+profspectra-ruby /home/hermesctl/.local/rubies/ruby-3.2/usr/bin/bundle3.2 exec jekyll build
+
+# link/structure check
+profspectra-ruby /home/hermesctl/.local/rubies/ruby-3.2/usr/bin/bundle3.2 exec htmlproofer _site \
+  --disable-external --ignore-urls '/^http:\/\/127.0.0.1/,/^http:\/\/0.0.0.0/,/^http:\/\/localhost/'
+
+# static regression checks (identity, one H1, covers, nav, viewport, ...)
+python3 tools/check_site.py
+
+# local preview (port 4001; 4000 is in use by the baseline checkout)
+profspectra-ruby /home/hermesctl/.local/rubies/ruby-3.2/usr/bin/bundle3.2 exec jekyll serve \
+  -H 127.0.0.1 -P 4001
+```
+
+CI (`.github/workflows/pages-deploy.yml`) runs the same production build, htmlproofer
+and `tools/check_site.py` on every push to `main`.

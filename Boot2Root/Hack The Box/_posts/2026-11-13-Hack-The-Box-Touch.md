@@ -5,7 +5,10 @@ description: A Hack The Box Boot2Root Challenge Rated Easy - by ProfSpectra
 tags: HackTheBox Windows Boot2Root Easy
 media_subpath: /assets/img/writeups/HackTheBox/Touch/
 image:
-  path: touch_solved.png
+  path: /assets/img/writeups/HackTheBox/Touch/touch_solved.png
+  alt: Touch machine completion banner showing user and root flags
+  width: 886
+  height: 300
 ---
 
 ## At a glance

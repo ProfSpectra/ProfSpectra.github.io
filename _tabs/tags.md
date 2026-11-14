@@ -1,7 +1,7 @@
 ---
 layout: tags
 icon: fas fa-tags
-order: 2
+order: 3
 ---
 
 {% assign tagdata = '' | split:'@' %}

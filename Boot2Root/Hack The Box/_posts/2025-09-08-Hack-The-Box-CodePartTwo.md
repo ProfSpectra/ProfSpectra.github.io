@@ -5,7 +5,10 @@ description: A Hack The Box Boot2Root Challenge Rated Easy
 tags: HackTheBox Linux Boot2Root Easy
 media_subpath: /assets/img/writeups/HackTheBox/CodePartTwo/
 image:
-  path: CodePartTwo.png
+  path: /assets/img/writeups/HackTheBox/CodePartTwo/CodePartTwo.png
+  alt: CodePartTwo machine completion banner showing user and root flags
+  width: 697
+  height: 418
 ---
 
 ## At a glance

@@ -9,7 +9,7 @@ theme: jekyll-theme-chirpy
 lang: en
 
 # Change to your timezone › https://kevinnovak.github.io/Time-Zone-Picker
-timezone:
+timezone: Asia/Kuala_Lumpur
 
 # Publish posts whose date is still ahead of the build clock (e.g. a post
 # written in UTC+8 on the evening of the 13th, published while the UTC
@@ -19,12 +19,13 @@ future: true
 # jekyll-seo-tag settings › https://github.com/jekyll/jekyll-seo-tag/blob/master/docs/usage.md
 # ↓ --------------------------
 
-title: Username # the main title
+title: ProfSpectra # the main title
 
-tagline: Spot, exploit, report, repeat # it will display as the subtitle
+tagline: Security writeups & field notes # it will display as the subtitle
 
 description: >- # used by seo meta and the atom feed
-  A minimal, responsive and feature-rich Jekyll theme for technical writing.
+  Putra Kaha's security notebook: Hack The Box and PwnTillDawn walkthroughs,
+  reproducible exploit paths, and copy-paste cheatsheets.
 
 # Fill in the protocol & hostname for your site.
 # E.g. 'https://username.github.io', note that it does not end with a '/'.
@@ -43,11 +44,9 @@ social:
   email: putraros1226@gmail.com # change to your email address
   links:
     # The first element serves as the copyright owner's link
-    - https://x.com/ros.putra # change to your Twitter homepage
     - https://github.com/ProfSpectra # change to your GitHub homepage
-    # Uncomment below to add more social links
-    # - https://www.facebook.com/username
-    # - https://www.linkedin.com/in/username
+    - https://www.linkedin.com/in/putra-kaha
+    - https://x.com/ros_putra # change to your X homepage
 
 # Site Verification Settings
 webmaster_verifications:
@@ -103,11 +102,12 @@ theme_mode: # [light | dark]
 cdn:
 
 # the avatar on sidebar, support local or CORS resources
-avatar: /assets/img/favicons/web-app-manifest-512x512.png
+avatar: /assets/img/profspectra-mark.svg
 
 # The URL of the site-wide social preview image used in SEO `og:image` meta tag.
 # It can be overridden by a customized `page.image` in front matter.
-social_preview_image: # string, local or CORS resources
+social_preview_image: /assets/img/profspectra-social.png # string, local or CORS resources
+social_preview_image_alt: ProfSpectra wordmark on warm paper with the tagline about security writeups and field notes
 
 # boolean type, the global switch for TOC in posts.
 toc: true
@@ -211,6 +211,9 @@ compress_html:
     envs: [development]
 
 exclude:
+  - "images"
+  - "assets/img/profspectra-social.png.src.md"
+  - "Gemfile.dev"
   - "*.gem"
   - "*.gemspec"
   - docs
@@ -220,6 +223,7 @@ exclude:
   - purgecss.js
   - "*.config.js"
   - "package*.json"
+  - "assets/img/**/*.html"
 
 jekyll-archives:
   enabled: [categories, tags]

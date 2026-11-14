@@ -5,7 +5,10 @@ description: A Hack The Box Linux Boot2Root Challenge Rated Easy - by ProfSpectr
 tags: HackTheBox Linux Boot2Root Easy
 media_subpath: /assets/img/writeups/HackTheBox/DoubleTake/
 image:
-  path: DoubleTake-cover.png
+  path: /assets/img/writeups/HackTheBox/DoubleTake/DoubleTake-cover.png
+  alt: DoubleTake machine completion screen showing user and root flags
+  width: 888
+  height: 308
 ---
 
 ## At a glance

@@ -5,7 +5,10 @@ description: A PwnTillDawn Boot2Root Challenge Rated Difficult
 tags: PwnTillDawn Linux Boot2Root Difficult
 media_subpath: /assets/img/writeups/PwnTillDawn/Brandy/
 image:
-  path: Brandy.png
+  path: /assets/img/writeups/PwnTillDawn/Brandy/Brandy.png
+  alt: Brandy machine completion banner showing user and root flags
+  width: 704
+  height: 363
 ---
 
 ## At a glance

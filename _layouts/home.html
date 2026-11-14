@@ -1,0 +1,106 @@
+---
+layout: default
+---
+
+{%- comment -%}
+  ProfSpectra portfolio home.
+  Everything a maintainer edits lives in _data/portfolio.yml;
+  post metadata comes from each post's front matter.
+{%- endcomment -%}
+
+{% include lang.html %}
+
+{% assign portfolio = site.data.portfolio %}
+{% assign featured = portfolio.featured_writeups %}
+{% assign latest = site.posts | limit: portfolio.latest_count | default: 4 %}
+
+<div class="ps-home">
+
+  <header class="ps-hero">
+    <p class="ps-kicker">{{ portfolio.kicker }}</p>
+    <h1 class="ps-title">
+      {{ portfolio.headline }}
+    </h1>
+    <p class="ps-lede">{{ portfolio.lede }}</p>
+    <nav class="ps-cta" aria-label="Primary actions">
+      <a class="ps-btn" href="{{ '/writeups/' | relative_url }}">{{ portfolio.cta_primary }}</a>
+      <a class="ps-btn ps-btn-quiet" href="{{ '/about/' | relative_url }}">{{ portfolio.cta_secondary }}</a>
+    </nav>
+  </header>
+
+  <section class="ps-section ps-focus" aria-labelledby="ps-focus-heading">
+    <h2 id="ps-focus-heading" class="ps-section-title">{{ portfolio.focus_heading }}</h2>
+    <ul class="ps-focus-list">
+      {%- for area in portfolio.focus_areas -%}
+        <li>
+          <h3 class="ps-focus-name">{{ area.name }}</h3>
+          <p class="ps-focus-note">{{ area.note }}</p>
+        </li>
+      {%- endfor -%}
+    </ul>
+  </section>
+
+  <section class="ps-section" aria-labelledby="ps-featured-heading">
+    <h2 id="ps-featured-heading" class="ps-section-title">{{ portfolio.featured_heading }}</h2>
+
+    {%- for entry in featured -%}
+      {%- assign the_post = site.posts | where: 'url', entry.path | first -%}
+      {%- if the_post -%}
+        <article class="ps-record">
+          <div class="ps-record-meta">
+            {%- for tag in the_post.tags -%}
+              {%- if tag == 'Easy' or tag == 'Medium' or tag == 'Hard' or tag == 'Difficult' -%}
+                <span class="chip">{{ tag }}</span>
+              {%- endif -%}
+              {%- if tag == 'Linux' or tag == 'Windows' -%}
+                <span class="chip">{{ tag }}</span>
+              {%- endif -%}
+            {%- endfor -%}
+            <time datetime="{{ the_post.date | date_to_xmlschema }}">{{ the_post.date | date: "%b %-d, %Y" }}</time>
+          </div>
+          <h3 class="ps-record-title"><a href="{{ the_post.url | relative_url }}">{{ the_post.title | escape }}</a></h3>
+          <p class="ps-record-note">{{ entry.note }}</p>
+          <p class="ps-record-desc">{{ the_post.description | default: entry.note | strip_html | escape }}</p>
+        </article>
+      {%- endif -%}
+    {%- endfor -%}
+
+    <p><a class="ps-more" href="{{ '/writeups/' | relative_url }}">{{ portfolio.all_writeups_label }} <span aria-hidden="true">→</span></a></p>
+  </section>
+
+  <section class="ps-section" aria-labelledby="ps-latest-heading">
+    <h2 id="ps-latest-heading" class="ps-section-title">{{ portfolio.latest_heading }}</h2>
+    <ul class="ps-latest-list">
+      {%- for post in latest -%}
+        <li>
+          <a href="{{ post.url | relative_url }}">{{ post.title | escape }}</a>
+          <time datetime="{{ post.date | date_to_xmlschema }}">{{ post.date | date: "%b %-d, %Y" }}</time>
+        </li>
+      {%- endfor -%}
+    </ul>
+    <p><a class="ps-more" href="{{ '/archives/' | relative_url }}">{{ portfolio.archive_label }} <span aria-hidden="true">→</span></a></p>
+  </section>
+
+  <section class="ps-section" aria-labelledby="ps-projects-heading">
+    <h2 id="ps-projects-heading" class="ps-section-title">{{ portfolio.projects_heading }}</h2>
+    <ul class="ps-projects">
+      {%- for repo in portfolio.projects -%}
+        <li>
+          <h3 class="ps-project-name"><a href="{{ repo.url }}" rel="noopener">{{ repo.name }}</a></h3>
+          <p class="ps-project-desc">{{ repo.note }}</p>
+        </li>
+      {%- endfor -%}
+    </ul>
+  </section>
+
+  <section class="ps-section ps-contact" aria-labelledby="ps-contact-heading">
+    <h2 id="ps-contact-heading" class="ps-section-title">{{ portfolio.contact_heading }}</h2>
+    <p class="ps-contact-lede">{{ portfolio.contact_lede }}</p>
+    <ul class="ps-contact-links">
+      {%- for link in portfolio.contact_links -%}
+        <li><a href="{{ link.url }}" rel="noopener">{{ link.label }}</a></li>
+      {%- endfor -%}
+    </ul>
+  </section>
+
+</div>
