@@ -453,8 +453,7 @@ check("assets: custom SCSS override present",
 check("assets: profspectra partial present",
       (ROOT / "_sass/profspectra.scss").is_file())
 check("assets: theme.min.js present", (SITE / "assets/js/dist/theme.min.js").is_file())
-check("assets: app.min.js present (pwa)", (SITE / "app.min.js").is_file())
-check("assets: sw.min.js present (pwa)", (SITE / "sw.min.js").is_file())
+check("assets: PWA registration disabled", "pwa:\n" in (ROOT / "_config.yml").read_text() and "enabled: false" in (ROOT / "_config.yml").read_text().split("pwa:\n", 1)[1].split("paginate:", 1)[0] and "/app.min.js" not in home)
 check("assets: search index built",
       (SITE / "assets/js/data/search.json").is_file(),
       "search.json is the site search index (feed.xml is the RSS feed)")

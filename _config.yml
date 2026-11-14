@@ -143,9 +143,10 @@ assets:
     env: # [development | production]
 
 pwa:
-  enabled: true # The option for PWA feature (installable)
+  # Static portfolio: no offline mode or stale service-worker cache.
+  enabled: false # The option for PWA feature (installable)
   cache:
-    enabled: true # The option for PWA offline cache
+    enabled: false # The option for PWA offline cache
     # Paths defined here will be excluded from the PWA cache.
     # Usually its value is the `baseurl` of another website that
     # shares the same domain name as the current website.
@@ -224,6 +225,8 @@ exclude:
   - "*.config.js"
   - "package*.json"
   - "assets/img/**/*.html"
+  - app.min.js
+  - sw.min.js
 
 jekyll-archives:
   enabled: [categories, tags]
