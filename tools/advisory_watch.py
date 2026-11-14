@@ -6,9 +6,9 @@ watch.  Bounded pulls from CISA KEV, NVD CVE API 2.0 and per-CVE GitHub
 advisory lookups (via the existing authenticated `gh` CLI — no tokens are
 read, stored or copied by this script), plus bounded per-watched-CVE OSV
 record enrichment.  Produces a small derived JSON state file plus
-per-run evidence snapshots (canonicalized JSON — see the truthfulness
-note below); it never executes exploit code and never publishes
-anything by itself.
+per-run evidence snapshots (the raw response bytes exactly as fetched
+from the wire — never reserialized JSON); it never executes exploit
+code and never publishes anything by itself.
 
 Design rules (see docs/advisory-watch-operations.md):
   * no API keys required; NVD is paced (>=6s between requests) and NVD
@@ -19,10 +19,10 @@ Design rules (see docs/advisory-watch-operations.md):
     all previously collected entries untouched;
   * withdrawals (GHSA withdrawn_at / OSV withdrawn) flip records to
     WITHDRAWN — visible, never a silent delete;
-  * evidence snapshots are CANONICALIZED JSON (sorted keys, re-serialized)
-    + SHA-256 of exactly the stored bytes — they are not byte-verbatim
-    wire responses; the digest is reproducible against the stored
-    document, not against the raw HTTP body.  Stored under
+  * evidence snapshots are the raw response bytes (exact wire body for
+    HTTP providers, exact `gh api` stdout bytes for GHSA) + SHA-256 of
+    exactly those bytes; the derived canonical state in state.json is
+    kept distinct from the raw evidence.  Stored under
     .advisory-watch/evidence/, which is gitignored — only the bounded
     derived data in .advisory-watch/state.json is committed;
   * "PoC: Confirmed working" requires a manually curated verification
@@ -103,10 +103,14 @@ class Transport:
         self._timeout = timeout
         self._last_request_at = None
         self._host_last = {}  # per-host pacing for non-NVD hosts
+        # raw wire bytes of every successful response, in fetch order —
+        # evidence snapshots hash exactly these bytes, never reserialized JSON
+        self.raw_log = []
 
     def get_bytes(self, url):
         self._pace(url)
         body, headers = self._get_with_retries(url)
+        self.raw_log.append((url, body))
         return body
 
     def get_json(self, url):
@@ -180,12 +184,14 @@ class Transport:
 # ---------------------------------------------------------------------------
 
 def nvd_list(transport, params=None, results_per_page=NVD_RESULTS_PER_PAGE,
-             max_pages=None):
+             max_pages=None, raw_pages=None):
     """List NVD CVEs with offset pagination.
 
     Always adds noRejected=true (rejected records are noise for a watch)
     and keeps resultsPerPage within the API maximum of 2000.  Returns the
-    merged list of `cve` records across pages.
+    merged list of `cve` records across pages.  If ``raw_pages`` is a
+    list, each page's exact wire bytes are appended (in page order) so
+    evidence snapshots can store the raw response, not a reserialization.
     """
     params = dict(params or {})
     # NVD docs: noRejected "is provided without a parameter value" — a
@@ -206,8 +212,11 @@ def nvd_list(transport, params=None, results_per_page=NVD_RESULTS_PER_PAGE,
     pages = 0
     while True:
         url = "%s?%s&startIndex=%d" % (NVD_BASE, query, start_index)
-        data = transport.get_json(url)
+        raw = transport.get_bytes(url)
+        data = json.loads(raw.decode("utf-8"))
         vulns = data.get("vulnerabilities", [])
+        if raw_pages is not None:
+            raw_pages.append(raw)
         out.extend(v.get("cve") for v in vulns if v.get("cve"))
         pages += 1
         start_index += int(data.get("resultsPerPage", results_per_page))
@@ -227,18 +236,26 @@ def nvd_by_id(transport, cve_id):
 
 
 def kev_fetch(transport):
-    """Fetch the whole CISA KEV catalog — one GET, no pagination."""
-    return transport.get_json(KEV_URL)
+    """Fetch the whole CISA KEV catalog — one GET, no pagination.
+
+    Returns (catalog, raw_wire_bytes) so the evidence snapshot stores
+    the exact response bytes, never a reserialization."""
+    raw = transport.get_bytes(KEV_URL)
+    return json.loads(raw.decode("utf-8")), raw
 
 
 def osv_get(transport, vuln_id):
-    """Fetch one OSV record; returns None on a clean 404 (not found)."""
+    """Fetch one OSV record; returns None on a clean 404 (not found).
+
+    Returns (record, raw_wire_bytes) on success."""
+    url = OSV_API + urlquote(vuln_id)
     try:
-        return transport.get_json(OSV_API + urlquote(vuln_id))
+        raw = transport.get_bytes(url)
     except FetchError as e:
         if "404" in str(e):
             return None
         raise
+    return json.loads(raw.decode("utf-8")), raw
 
 
 # ---------------------------------------------------------------------------
@@ -273,17 +290,19 @@ class GhCli:
         per-CVE lookup returns exactly the advisories for that CVE, so
         a watched item or its withdrawal is never missed for
         window-size reasons.  Raises FetchError on gh failure (never
-        silently truncates).
+        silently truncates).  Returns (advisories, raw_stdout_bytes)
+        so the evidence snapshot stores the exact gh output bytes.
         """
         endpoint = "advisories?cve_id=%s" % cve_id
         try:
             raw = self._runner([endpoint])
         except Exception as e:
             raise FetchError("gh api %s failed: %r" % (endpoint, e))
-        obj = json.loads(raw)
+        raw_bytes = raw.encode("utf-8") if isinstance(raw, str) else raw
+        obj = json.loads(raw_bytes.decode("utf-8"))
         if isinstance(obj, dict):
             obj = [obj]
-        return obj
+        return obj, raw_bytes
 
 
 # ---------------------------------------------------------------------------
@@ -724,6 +743,10 @@ class State:
             raise EvidenceError(
                 "independent_review.reviewer and .verdict are required "
                 "(independent reviewer + explicit verdict); gate fails closed")
+        if not str(review.get("date", "")).strip():
+            raise EvidenceError(
+                "independent_review.date is required (review date, so the "
+                "verdict is attributable in time); gate fails closed")
         item = self._item(cve_id, now)
         item["poc_status"] = "CONFIRMED_WORKING"
         item["verification"] = verification  # preserved verbatim
@@ -737,14 +760,14 @@ class State:
             item["sources"].append(src)
 
 
-def _snapshot(state_dir, provider, doc_id, payload_obj, source_url, now=None):
-    """Store a canonicalized provider document + SHA-256 sidecar.
+def _snapshot(state_dir, provider, doc_id, raw_body, source_url, now=None):
+    """Store the raw response bytes + SHA-256 sidecar.
 
-    Truthfulness contract: the stored file is CANONICALIZED JSON
-    (re-serialized, sorted keys, indent 2) — NOT the byte-verbatim wire
-    response.  The SHA-256 is computed over exactly the stored bytes, so
-    it is reproducible against the snapshot file, not against the raw
-    HTTP body.
+    Truthfulness contract: the stored file is the EXACT raw response
+    bytes from the wire (or the exact `gh api` stdout bytes for GHSA) —
+    never reserialized JSON.  The SHA-256 is computed over exactly the
+    stored bytes, so the digest matches the wire body.  The derived,
+    canonical state lives separately in state.json.
 
     Evidence lives under <state_dir>/evidence/<provider>/ and is
     gitignored; only the bounded derived state is committed.  Returns the
@@ -754,7 +777,7 @@ def _snapshot(state_dir, provider, doc_id, payload_obj, source_url, now=None):
     ev_dir.mkdir(parents=True, exist_ok=True)
     stamp = (now or _now_iso()).replace(":", "").replace("-", "")[:14]
     path = ev_dir / ("%s-%s.json" % (doc_id, stamp))
-    body = json.dumps(payload_obj, indent=2, sort_keys=True).encode("utf-8")
+    body = raw_body
     path.write_bytes(body)
     digest = hashlib.sha256(body).hexdigest()
     meta = {"sha256": digest, "source": source_url, "fetched_at": now or _now_iso(),
@@ -836,6 +859,20 @@ def _run_locked(transport, gh, state, state_dir, summary, events, seen,
     # than MAX_COVERAGE_GAP_DAYS, the fixed 3-day NVD/GHSA windows cannot
     # cover the gap and modifications/withdrawals could be silently
     # missed — refuse instead (docs: cron alerting picks this up).
+    # The same guard applies to the per-provider NVD coverage cursor:
+    # daily runs that all FAIL leave last_run_at fresh while NVD has not
+    # succeeded for days — the next 3-day window would silently miss the
+    # un-covered days, so that must refuse loudly too.
+    nvd_last_ok = state.cursors.get("nvd_last_ok")
+    nvd_gap_days = None
+    if nvd_last_ok:
+        try:
+            nvd_ok_dt = dt.datetime.strptime(nvd_last_ok,
+                                             "%Y-%m-%dT%H:%M:%SZ")
+        except ValueError:
+            nvd_ok_dt = None
+        if nvd_ok_dt is not None:
+            nvd_gap_days = (now_dt - nvd_ok_dt).total_seconds() / 86400.0
     prev_saved_at = state.cursors.get("last_run_at") or _prev_saved_at(state_dir)
     if prev_saved_at:
         try:
@@ -852,15 +889,23 @@ def _run_locked(transport, gh, state, state_dir, summary, events, seen,
                     "silently missed; run with --ignore-stale to accept "
                     "the gap explicitly" % (prev_saved_at, gap_days,
                                             NVD_WINDOW_DAYS))
+    if nvd_gap_days is not None and nvd_gap_days > MAX_COVERAGE_GAP_DAYS \
+            and not ignore_stale:
+        raise RuntimeError(
+            "NVD coverage gap: last successful NVD run was %s (%.1f days "
+            "ago) but the NVD window covers only %d days — modifications "
+            "in the gap would be silently missed; run with --ignore-stale "
+            "to accept the gap explicitly" % (nvd_last_ok, nvd_gap_days,
+                                              NVD_WINDOW_DAYS))
     state.cursors["last_run_at"] = now
 
     # CISA KEV — authoritative exploited-in-the-wild signal, single GET
     try:
-        catalog = kev_fetch(transport)
+        catalog, kev_raw = kev_fetch(transport)
         summary["kev_version"] = catalog.get("catalogVersion")
         snap = _snapshot(state_dir, "kev",
                          "catalog-%s" % catalog.get("catalogVersion", "x"),
-                         catalog, KEV_URL, now=now)
+                         kev_raw, KEV_URL, now=now)
         state.cursors["kev_snapshot"] = snap["sha256"]
         state.apply_kev_catalog(catalog, now=now)
         cutoff = now_dt.date() - dt.timedelta(days=kev_window_days)
@@ -888,17 +933,20 @@ def _run_locked(transport, gh, state, state_dir, summary, events, seen,
             "lastModStartDate": since.strftime("%Y-%m-%dT%H:%M:%S.000"),
             "lastModEndDate": now_dt.strftime("%Y-%m-%dT%H:%M:%S.000"),
         }
-        records = nvd_list(transport, params, max_pages=3)
+        raw_pages = []
+        records = nvd_list(transport, params, max_pages=3,
+                           raw_pages=raw_pages)
+        for page_index, page in enumerate(raw_pages):
+            _snapshot(state_dir, "nvd", "page-%02d" % page_index, page,
+                      "%s?%s" % (NVD_BASE, "lastMod-window"), now=now)
         for rec in records:
             if _is_high_impact(rec):
-                _snapshot(state_dir, "nvd", rec["id"], rec,
-                          "https://nvd.nist.gov/vuln/detail/%s" % rec["id"],
-                          now=now)
                 ev = state.upsert_nvd(rec, now=now)
                 if ev and ev != "UNCHANGED":
                     _record_event(events, seen, rec["id"], ev)
         state.apply_kev_marks()  # KEV ids from the cursor mark NVD items
         state.record_provider_status("nvd", "OK")
+        state.cursors["nvd_last_ok"] = now  # advance only on success
         summary["providers"]["nvd"] = "OK"
     except (FetchError, ValueError) as e:
         state.record_provider_status("nvd", "FAILED", str(e))
@@ -955,10 +1003,12 @@ def _enrich_per_cve(transport, gh, state, watched, state_dir, events, seen,
         for cve in watched:
             pace()
             try:
-                advisories = gh.per_cve(cve)
+                advisories, ghsa_raw = gh.per_cve(cve)
             except FetchError as e:
                 ghsa_failures.append((cve, str(e)))
                 continue  # error never deletes/downgrades existing data
+            _snapshot(state_dir, "ghsa", cve, ghsa_raw,
+                      "gh api advisories?cve_id=%s" % cve, now=now)
             for adv in advisories:
                 if adv.get("cve_id") and adv.get("cve_id") != cve:
                     continue
@@ -980,14 +1030,15 @@ def _enrich_per_cve(transport, gh, state, watched, state_dir, events, seen,
     osv_hits = 0
     for cve in watched:
         try:
-            rec = osv_get(transport, cve)
+            got = osv_get(transport, cve)
         except FetchError as e:
             osv_failures.append((cve, str(e)))
             continue  # error never deletes/downgrades existing data
-        if rec is None:
+        if got is None:
             continue  # clean 404: no OSV record for this CVE
+        rec, osv_raw = got
         osv_hits += 1
-        _snapshot(state_dir, "osv", rec.get("id", cve), rec,
+        _snapshot(state_dir, "osv", rec.get("id", cve), osv_raw,
                   OSV_API + cve, now=now)
         ev = state.upsert_osv(rec, now=now)
         if ev and ev != "UNCHANGED":
@@ -1033,12 +1084,16 @@ def _is_high_impact(nvd_record):
 def main(argv=None, transport=None):
     """CLI: `python3 tools/advisory_watch.py [--state-dir DIR] [--json]`.
 
-    Exit-code contract (see docs/advisory-watch-operations.md): 0 = the
-    run completed and at least one provider succeeded OR there were
-    events/promoted items; 1 = every attempted provider failed with no
-    events and no promotable items (total failure); 2 = the run refused
-    to start or was refused mid-run for a safety reason (concurrent-run
-    lock, stale-coverage gap) — the state was NOT updated.
+    Exit-code contract (see docs/advisory-watch-operations.md):
+    0 = the run completed with every attempted provider succeeding;
+    1 = every attempted provider failed with no events and no
+    promotable items (total failure);
+    2 = the run refused to start or was refused mid-run for a safety
+    reason (concurrent-run lock, stale-coverage gap) — the state was
+    NOT updated;
+    3 = the run completed but at least one provider FAILED — nonzero
+    on ANY provider failure so scheduled runs visibly alert even when
+    old state makes the run otherwise look healthy.
     """
     ap = argparse.ArgumentParser(description="ProfSpectra advisory watch collector")
     ap.add_argument("--state-dir", default=WATCH_DIR,
@@ -1071,8 +1126,14 @@ def main(argv=None, transport=None):
               if str(s).startswith("FAILED")]
     ok = [p for p, s in summary["providers"].items()
           if not str(s).startswith("FAILED")]
-    if not ok and not summary["events"] and not summary["promoted"]:
-        return 1  # total failure: nothing succeeded, nothing collected
+    if failed:
+        if ok:
+            # partial failure: nonzero so scheduled runs alert even
+            # when old state/events make the run otherwise look healthy
+            return 3
+        if not summary["events"] and not summary["promoted"]:
+            return 1  # total failure: nothing succeeded, nothing collected
+        return 3  # all providers failed but old state exists — still alerts
     return 0
 
 

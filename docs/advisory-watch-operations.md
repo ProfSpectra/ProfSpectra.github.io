@@ -33,13 +33,13 @@ powers the site's high-impact vulnerability watch:
   **gitignored** — it carries the transient NVD monitoring ring and
   churns daily; the bounded public record is the Advisory posts
   themselves) written atomically (temp file + `os.replace`).
-- **Evidence**: **canonicalized** provider JSON (re-serialized, sorted
-  keys) + SHA-256 sidecars under `.advisory-watch/evidence/` —
-  **gitignored**, never committed. The SHA-256 is computed over exactly
-  the stored bytes, so any published field can be re-verified against
-  the stored snapshot. Snapshots are **not** byte-verbatim wire
-  responses; the digest is reproducible against the snapshot file, not
-  the raw HTTP body.
+- **Evidence**: the **raw response bytes** exactly as fetched from the
+  wire (exact `gh api` stdout bytes for GHSA) + SHA-256 sidecars under
+  `.advisory-watch/evidence/` — **gitignored**, never committed. The
+  SHA-256 is computed over exactly the stored bytes, so the digest
+  matches the wire body, not a reserialization. The derived, canonical
+  state in `state.json` is kept distinct from the raw evidence
+  snapshots.
 
 ## Daily operation
 
@@ -52,10 +52,7 @@ python3 -m unittest discover -s tests -v   # full test suite
 
 ### Exit codes (cron contract)
 
-- **0** — the run completed; at least one provider succeeded (partial
-  provider failure is still a successful run: the failed provider is
-  marked `FAILED` in `state.json` and existing entries are **never**
-  deleted or downgraded).
+- **0** — the run completed and **every attempted provider succeeded**.
 - **1** — *total failure*: every attempted provider failed with no
   events and no promotable items.
 - **2** — the run was **refused** for a safety reason and the state was
@@ -65,10 +62,19 @@ python3 -m unittest discover -s tests -v   # full test suite
   NVD/GHSA/OSV windows could not cover the gap (a >3-day collector
   outage would otherwise silently miss modifications and withdrawals —
   the collector refuses loudly instead; pass `--ignore-stale` to accept
-  the gap explicitly).
+  the gap explicitly). The same refusal applies when the *NVD provider
+  specifically* has not succeeded for more than 3 days (daily runs
+  failing while `last_run_at` stays fresh): the NVD coverage cursor
+  (`cursors.nvd_last_ok`) advances only on a successful NVD fetch, so
+  the accumulated gap is always visible and never silently skipped.
+- **3** — the run completed but **at least one provider FAILED**:
+  nonzero on any provider failure so scheduled runs visibly alert even
+  when old state or events make the run otherwise look healthy. The
+  failed provider is marked `FAILED` in `state.json` and existing
+  entries are **never** deleted or downgraded.
 
-Cron alerting should treat **1 and 2 as failures** (and optionally
-alert on any `FAILED` provider status even with exit 0).
+Cron alerting should treat **1, 2 and 3 as failures** (any nonzero
+exit is an alerting signal).
 
 After a run, the editor (human or agent) promotes at most the top 10 items
 from `promote` into a Markdown post under `Advisory/<sub>/_posts/` by
@@ -105,8 +111,9 @@ unverified`, or `confirmed working`:
   2. `control` — the exact **fixed** (or meaningfully different) version
      — never the same version as the reproduction — with a concrete
      observed `result` showing the issue does not reproduce;
-  3. `independent_review` — a named **reviewer** and an explicit
-     **verdict**.
+  3. `independent_review` — a named **reviewer**, an explicit
+     **verdict**, and a review **date** (so the verdict is attributable
+     in time).
 - The collector itself never executes exploit code and never grants
   `CONFIRMED_WORKING`; manual verification records are preserved verbatim
   across runs (`verification` key on the item).
@@ -121,7 +128,12 @@ unverified`, or `confirmed working`:
 - **Coverage gaps**: the collector refuses to run (exit 2) when the last
   successful run is older than the 3-day windows, so a >3-day outage is
   a loud failure, never a silent hole in modification/withdrawal
-  coverage. `--ignore-stale` accepts the gap explicitly.
+  coverage. `--ignore-stale` accepts the gap explicitly. The
+  per-provider NVD cursor (`cursors.nvd_last_ok`) advances **only on a
+  successful NVD fetch** — a streak of runs where NVD fails (while the
+  overall run keeps succeeding) accumulates a real coverage gap that
+  the next run refuses on instead of silently starting a fresh 3-day
+  window.
 - **Compaction** (`compact`, 3-day transient-ring retention) never drops
   KEV, WITHDRAWN, verified (`verification`) or PoC-linked (`pocs`)
   entries — only stale transient monitoring-ring items.
@@ -140,7 +152,7 @@ created **paused**, test-fired once (`hermes cron run <id>`), then
 resumed. A `--no-agent` script job running just the collector is also
 valid. This task intentionally does **not** create the job; the owner
 should schedule after reviewing the first published advisory updates.
-Cron alerting must treat exit codes 1 and 2 as failures (see
+Cron alerting must treat exit codes 1, 2 and 3 as failures (see
 "Exit codes").
 
 ## Remaining limits (honest)
@@ -156,8 +168,9 @@ Cron alerting must treat exit codes 1 and 2 as failures (see
 - Withdrawal "un-withdrawal" (an advisory un-withdrawn upstream) is not
   auto-detected: once WITHDRAWN, the record stays WITHDRAWN until
   manually reviewed — conservative by design.
-- Evidence snapshots are canonicalized JSON, not raw wire bytes (see
-  above).
+- Evidence snapshots are the **raw response bytes** exactly as fetched
+  from the wire (exact `gh api` stdout for GHSA); the SHA-256 sidecar
+  covers exactly those bytes (see above).
 - The `run.lock` guard is fail-fast, not queueing: a crashed run can
   leave a stale lock that must be removed manually (the file records
   the PID).

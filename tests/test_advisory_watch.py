@@ -253,8 +253,12 @@ class TestGhCli(unittest.TestCase):
                 {"ghsa_id": "G-1", "cve_id": "CVE-A", "withdrawn_at": None}])
 
         gh = aw.GhCli(runner=runner)
-        advisories = gh.per_cve("CVE-A")
+        advisories, raw = gh.per_cve("CVE-A")
         self.assertEqual([a["ghsa_id"] for a in advisories], ["G-1"])
+        self.assertEqual(
+            raw, json.dumps([
+                {"ghsa_id": "G-1", "cve_id": "CVE-A",
+                 "withdrawn_at": None}]).encode("utf-8"))
         self.assertEqual(seen[0], ["advisories?cve_id=CVE-A"])
         self.assertNotIn("--paginate", seen[0][0])  # exact per-CVE lookup
 
@@ -263,7 +267,7 @@ class TestGhCli(unittest.TestCase):
             return json.dumps({"ghsa_id": "G-1", "cve_id": "CVE-A"})
 
         gh = aw.GhCli(runner=runner)
-        advisories = gh.per_cve("CVE-A")
+        advisories, _raw = gh.per_cve("CVE-A")
         self.assertEqual(len(advisories), 1)
         self.assertEqual(advisories[0]["ghsa_id"], "G-1")
 
@@ -564,11 +568,12 @@ class TestGhsaEnrichmentBounded(unittest.TestCase):
             def per_cve(self, cve_id):
                 self.asked.append(cve_id)
                 if cve_id == "CVE-A":
-                    return [{"ghsa_id": "G-1", "cve_id": "CVE-A",
-                             "severity": "high",
-                             "updated_at": "2026-11-14T00:00:00Z",
-                             "withdrawn_at": None}]
-                return []
+                    adv = [{"ghsa_id": "G-1", "cve_id": "CVE-A",
+                            "severity": "high",
+                            "updated_at": "2026-11-14T00:00:00Z",
+                            "withdrawn_at": None}]
+                    return adv, json.dumps(adv).encode("utf-8")
+                return [], b"[]"
 
         gh = FakeGh()
         with TempStateDir() as tmp:
@@ -606,11 +611,12 @@ class TestGhsaEnrichmentBounded(unittest.TestCase):
         class FakeGh:
             def per_cve(self, cve_id):
                 if cve_id == "CVE-A":
-                    return [{"ghsa_id": "G-1", "cve_id": "CVE-A",
-                             "severity": "high",
-                             "updated_at": "2026-11-14T00:00:00Z",
-                             "withdrawn_at": "2026-11-14T00:00:00Z"}]
-                return []
+                    adv = [{"ghsa_id": "G-1", "cve_id": "CVE-A",
+                            "severity": "high",
+                            "updated_at": "2026-11-14T00:00:00Z",
+                            "withdrawn_at": "2026-11-14T00:00:00Z"}]
+                    return adv, json.dumps(adv).encode("utf-8")
+                return [], b"[]"
 
         with TempStateDir() as tmp:
             run1 = self._run(tmp, FakeGh())
@@ -630,11 +636,12 @@ class TestGhsaEnrichmentBounded(unittest.TestCase):
         class FakeGh:
             def per_cve(self, cve_id):
                 if cve_id == "CVE-A":
-                    return [{"ghsa_id": "G-1", "cve_id": "CVE-A",
-                             "severity": "high",
-                             "updated_at": "2026-11-14T00:00:00Z",
-                             "withdrawn_at": None}]
-                return []
+                    adv = [{"ghsa_id": "G-1", "cve_id": "CVE-A",
+                            "severity": "high",
+                            "updated_at": "2026-11-14T00:00:00Z",
+                            "withdrawn_at": None}]
+                    return adv, json.dumps(adv).encode("utf-8")
+                return [], b"[]"
 
         with TempStateDir() as tmp:
             run1 = self._run(tmp, FakeGh())
@@ -646,10 +653,11 @@ class TestGhsaEnrichmentBounded(unittest.TestCase):
 class FakeGh_ok:
     def per_cve(self, cve_id):
         if cve_id == "CVE-A":
-            return [{"ghsa_id": "G-1", "cve_id": "CVE-A", "severity": "high",
-                      "updated_at": "2026-11-14T00:00:00Z",
-                      "withdrawn_at": None}]
-        return []
+            adv = [{"ghsa_id": "G-1", "cve_id": "CVE-A", "severity": "high",
+                    "updated_at": "2026-11-14T00:00:00Z",
+                    "withdrawn_at": None}]
+            return adv, json.dumps(adv).encode("utf-8")
+        return [], b"[]"
 
 
 class TestWithdrawalIdempotency(unittest.TestCase):
@@ -764,6 +772,30 @@ class TestWithdrawalIdempotency(unittest.TestCase):
                     "independent_review": {"reviewer": "r",
                                             "verdict": "confirmed"}})
 
+    def test_poc_gate_requires_review_date(self):
+        """The card's PoC gate legs: reviewer/date/verdict — an
+        independent review without a date is not attributable evidence
+        and must fail closed."""
+        with TempStateDir() as tmp:
+            st = aw.State(tmp.path)
+            st.upsert_kev(_kev("CVE-C"))
+            with self.assertRaises(aw.EvidenceError):
+                st.set_poc_confirmed("CVE-C", {
+                    "reproduction": {
+                        "env": "local authorized fixture",
+                        "component": "c", "version": "6.0.0",
+                        "affected_version": "6.0.0",
+                        "config": "official defaults",
+                        "command": "cmd", "result": "repro"},
+                    "control": {"version": "6.2.0", "result": "no repro"},
+                    "independent_review": {"reviewer": "r",
+                                            "verdict": "confirmed"
+                                            # date missing
+                                            }})
+            # gate refused before mutating
+            self.assertNotEqual(st.items["CVE-C"]["poc_status"],
+                                "CONFIRMED_WORKING")
+
     def test_run_lock_refuses_concurrent_runs(self):
         """R2: a concurrent run refuses to start instead of interleaving
         state saves (lost updates)."""
@@ -799,6 +831,95 @@ class TestWithdrawalIdempotency(unittest.TestCase):
             # ignore_stale accepts the gap explicitly
             aw.run(transport=paced(t), gh=None, state_dir=tmp.path,
                    ignore_stale=True, enrich_min_interval=0)
+
+    def test_stale_nvd_coverage_refuses_even_with_recent_runs(self):
+        """R3 hole: the collector ran yesterday (last_run_at fresh) but
+        NVD has not SUCCEEDED for >3 days (daily failures).  The next
+        run's 3-day window cannot cover the missed modifications — it
+        must refuse loudly, not silently start a fresh window."""
+
+        def _run_and_read(tmp, kev_ok=True, nvd_ok=True):
+            class T:
+                def get_bytes(self, url):
+                    if "cisa.gov" in url:
+                        if not kev_ok:
+                            raise aw.FetchError("kev down")
+                        return json.dumps({
+                            "title": "KEV", "catalogVersion": "1",
+                            "dateReleased": "x", "count": 0,
+                            "vulnerabilities": []}).encode()
+                    if "cves/2.0" in url:
+                        if not nvd_ok:
+                            raise aw.FetchError("nvd down")
+                        return json.dumps({
+                            "resultsPerPage": 0, "startIndex": 0,
+                            "totalResults": 0,
+                            "vulnerabilities": []}).encode()
+                    raise aw.FetchError("osv down")
+
+            transport = aw.Transport(transport=T(), sleeper=lambda s: None,
+                                     clock=lambda: 0.0, min_interval=0)
+            return aw.run(transport=transport, gh=None, state_dir=tmp.path,
+                          enrich_min_interval=0)
+
+        with TempStateDir() as tmp:
+            fresh = dt.datetime.now(dt.timezone.utc).strftime(
+                "%Y-%m-%dT%H:%M:%SZ")
+            old = "2026-10-01T00:00:00Z"
+            payload = {"saved_at": fresh,
+                       "cursors": {"last_run_at": fresh,
+                                   "nvd_last_ok": old},
+                       "provider_status": {}, "items": {}}
+            tmp.path.mkdir(parents=True, exist_ok=True)
+            (tmp.path / "state.json").write_text(json.dumps(payload))
+            with self.assertRaises(RuntimeError):
+                _run_and_read(tmp)
+            # explicit acceptance still runs and refreshes the cursor
+            summary = None
+            class T2:
+                def get_bytes(self, url):
+                    if "cisa.gov" in url:
+                        return json.dumps({
+                            "title": "KEV", "catalogVersion": "1",
+                            "dateReleased": "x", "count": 0,
+                            "vulnerabilities": []}).encode()
+                    return json.dumps({
+                        "resultsPerPage": 0, "startIndex": 0,
+                        "totalResults": 0,
+                        "vulnerabilities": []}).encode()
+            transport = aw.Transport(transport=T2(), sleeper=lambda s: None,
+                                     clock=lambda: 0.0, min_interval=0)
+            summary = aw.run(transport=transport, gh=None,
+                             state_dir=tmp.path, ignore_stale=True,
+                             enrich_min_interval=0)
+            state = json.loads((tmp.path / "state.json").read_text())
+            self.assertEqual(summary["providers"]["nvd"], "OK")
+            self.assertEqual(state["cursors"]["nvd_last_ok"], summary["at"])
+
+    def test_failed_nvd_day_does_not_advance_coverage_cursor(self):
+        """R3 hole: a run where NVD failed must not advance the NVD
+        coverage cursor — otherwise the next run starts a fresh 3-day
+        window and silently misses the failed day's modifications."""
+
+        class KevOkNvdFail:
+            def get_bytes(self, url):
+                if "cisa.gov" in url:
+                    return json.dumps({
+                        "title": "KEV", "catalogVersion": "1",
+                        "dateReleased": "x", "count": 0,
+                        "vulnerabilities": []}).encode()
+                raise aw.FetchError("nvd down")
+
+        with TempStateDir() as tmp:
+            transport = aw.Transport(transport=KevOkNvdFail(),
+                                     sleeper=lambda s: None,
+                                     clock=lambda: 0.0, min_interval=0)
+            aw.run(transport=transport, gh=None, state_dir=tmp.path,
+                   enrich_min_interval=0)
+            state = json.loads((tmp.path / "state.json").read_text())
+            self.assertIsNone(state["cursors"].get("nvd_last_ok"),
+                              "a failed NVD day must not advance the "
+                              "coverage cursor")
 
     def test_compact_never_drops_poc_linked_entries(self):
         """R4: transient items carrying PoC links are never dropped by
@@ -905,7 +1026,8 @@ class TestOsvEnrichment(unittest.TestCase):
 
 class TestExitCodeContract(unittest.TestCase):
     """P3: exit-code semantics — total provider failure with nothing
-    already collected exits 1; partial failure exits 0."""
+    already collected exits 1; any provider failure is nonzero so
+    scheduled runs alert even with old state (exit 3); refusals exit 2."""
 
     def _main(self, transport):
         import io, contextlib
@@ -924,9 +1046,9 @@ class TestExitCodeContract(unittest.TestCase):
         code = self._main(transport)
         self.assertEqual(code, 1)
 
-    def test_partial_failure_exits_0(self):
-        """kev OK + nvd FAILED + empty state -> 0 (docs: partial failure
-        is a successful run that marks the provider FAILED)."""
+    def test_partial_failure_is_nonzero(self):
+        """kev OK + nvd FAILED -> nonzero (exit 3): a scheduled run
+        must visibly alert on any provider failure, not exit 0."""
 
         class KevOnly:
             def get_bytes(self, url):
@@ -940,7 +1062,49 @@ class TestExitCodeContract(unittest.TestCase):
         transport = aw.Transport(transport=KevOnly(), sleeper=lambda s: None,
                                  clock=lambda: 0.0, min_interval=0)
         code = self._main(transport)
+        self.assertEqual(code, 3)
+
+    def test_all_providers_failed_with_old_state_is_nonzero(self):
+        """Defender probe P3 (the alerting hole): every provider fails
+        while old promotable state exists — the run must NOT exit 0,
+        because cron would read 'healthy' off stale data."""
+
+        class AllFail:
+            def get_bytes(self, url):
+                raise aw.FetchError("provider down")
+
+        with TempStateDir() as tmp:
+            # seed old state with a promotable item
+            st = aw.State(tmp.path)
+            st.upsert_kev(_kev("CVE-OLD"))
+            st.save()
+            import io, contextlib
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                code = aw.main(["--state-dir", str(tmp.path)],
+                               transport=aw.Transport(
+                                   transport=AllFail(),
+                                   sleeper=lambda s: None,
+                                   clock=lambda: 0.0, min_interval=0))
+        self.assertEqual(code, 3)
+
+    def test_healthy_run_exits_0(self):
+        class AllOk:
+            def get_bytes(self, url):
+                if "cisa.gov" in url:
+                    return json.dumps({
+                        "title": "KEV", "catalogVersion": "1",
+                        "dateReleased": "x", "count": 0,
+                        "vulnerabilities": []}).encode()
+                return json.dumps({
+                    "resultsPerPage": 0, "startIndex": 0,
+                    "totalResults": 0, "vulnerabilities": []}).encode()
+
+        transport = aw.Transport(transport=AllOk(), sleeper=lambda s: None,
+                                 clock=lambda: 0.0, min_interval=0)
+        code = self._main(transport)
         self.assertEqual(code, 0)
+
 
     def test_refused_run_exits_2_without_touching_state(self):
         """Lock refusal / stale-gap refusal exit 2; state unchanged."""
@@ -956,40 +1120,125 @@ class TestExitCodeContract(unittest.TestCase):
                              "refused run must not write state")
 
 
-class TestEvidenceFidelityClaims(unittest.TestCase):
-    """Finding 6: snapshots are canonicalized JSON, never claimed
-    byte-verbatim; SHA-256 covers exactly the stored bytes."""
+class TestRawByteEvidence(unittest.TestCase):
+    """Finding 6 (card directive): evidence snapshots must preserve and
+    hash the ACTUAL raw response bytes from the wire — never reserialized
+    JSON.  Raw wire evidence is kept distinct from the canonical derived
+    state in state.json."""
 
-    def test_snapshot_is_canonicalized_json_claim_is_true(self):
-        kev = {"title": "KEV", "catalogVersion": "9", "dateReleased": "x",
-               "count": 0, "vulnerabilities": []}
+    WIRE_KEV = (b'{"catalogVersion": "9", "title": "KEV", "dateReleased": "x",'
+                b' "count": 0, "vulnerabilities": []}\n')
+    WIRE_NVD_EMPTY = (b'{"resultsPerPage": 0, "startIndex": 0,'
+                      b' "totalResults": 0, "vulnerabilities": []}')
+
+    def _evidence_files(self, tmp, provider):
+        return sorted(p for p in (tmp.path / "evidence" / provider)
+                      .glob("*.json")
+                      if not p.name.endswith(".sha256.json"))
+
+    def test_kev_snapshot_stores_exact_wire_bytes(self):
         t = RouteTransport()
-        t.add(lambda u: "cisa.gov" in u, [kev])
+        t.add(lambda u: "cisa.gov" in u, [self.WIRE_KEV])
+        t.add(lambda u: "cves/2.0" in u, [self.WIRE_NVD_EMPTY])
         with TempStateDir() as tmp:
             aw.run(transport=paced(t), gh=None, state_dir=tmp.path)
-            files = [p for p in (tmp.path / "evidence" / "kev").glob("*.json")
-                     if not p.name.endswith(".sha256.json")]
+            files = self._evidence_files(tmp, "kev")
             self.assertEqual(len(files), 1)
             body = files[0].read_bytes()
-            # canonical form: sorted keys, deterministic re-serialization
-            reparsed = json.loads(body)
-            self.assertEqual(
-                body, json.dumps(reparsed, indent=2, sort_keys=True)
+            self.assertEqual(body, self.WIRE_KEV,
+                             "snapshot must be the exact wire bytes")
+            self.assertNotEqual(
+                body,
+                json.dumps(json.loads(body), indent=2, sort_keys=True)
                 .encode("utf-8"),
-                "stored snapshot must be the canonicalized form of its "
-                "own content")
+                "snapshot must not be a canonical re-serialization")
             meta = json.loads(files[0].with_suffix(".sha256.json")
                               .read_text())
             self.assertEqual(meta["sha256"],
-                             hashlib.sha256(body).hexdigest())
+                             hashlib.sha256(self.WIRE_KEV).hexdigest())
 
-    def test_source_docstring_claims_canonicalized_not_verbatim(self):
+    def test_nvd_page_snapshot_stores_exact_wire_bytes(self):
+        page = (b'{"resultsPerPage": 1, "startIndex": 0, "totalResults": 1,'
+                b' "vulnerabilities": [{"cve": {"id": "CVE-A",'
+                b' "published": "2026-11-01T00:00:00.000",'
+                b' "lastModified": "2026-11-01T00:00:00.000",'
+                b' "vulnStatus": "Analyzed",'
+                b' "descriptions": [{"lang": "en", "value": "d"}],'
+                b' "metrics": {"cvssMetricV31": [{"cvssData":'
+                b' {"baseScore": 8.8, "baseSeverity": "HIGH"}}]}}}]}\n')
+        t = RouteTransport()
+        t.add(lambda u: "cisa.gov" in u, [self.WIRE_KEV])
+        t.add(lambda u: "cves/2.0" in u, [page])
+        with TempStateDir() as tmp:
+            aw.run(transport=paced(t), gh=None, state_dir=tmp.path)
+            files = self._evidence_files(tmp, "nvd")
+            self.assertEqual(len(files), 1,
+                             "raw NVD page must be snapshotted")
+            self.assertEqual(files[0].read_bytes(), page)
+            meta = json.loads(files[0].with_suffix(".sha256.json")
+                              .read_text())
+            self.assertEqual(meta["sha256"], hashlib.sha256(page).hexdigest())
+
+    def test_osv_snapshot_stores_exact_wire_bytes(self):
+        today = dt.date.today().isoformat()
+        kev = (b'{"catalogVersion": "1", "title": "KEV", "dateReleased": "x",'
+               b' "count": 1, "vulnerabilities": [{"cveID": "CVE-A",'
+               b' "dateAdded": "%s"}]}\n' % today.encode())
+        osv_raw = (b'{"id": "CVE-A", "modified":'
+                   b' "2026-11-14T00:00:00.000Z",'
+                   b' "summary": "osv summary"}\n')
+        t = RouteTransport()
+        t.add(lambda u: "cisa.gov" in u, [kev])
+        t.add(lambda u: "cves/2.0" in u, [self.WIRE_NVD_EMPTY])
+        t.add(lambda u: "api.osv.dev" in u, [osv_raw])
+        with TempStateDir() as tmp:
+            aw.run(transport=paced(t), gh=None, state_dir=tmp.path,
+                   enrich_min_interval=0)
+            files = self._evidence_files(tmp, "osv")
+            self.assertEqual(len(files), 1)
+            self.assertEqual(files[0].read_bytes(), osv_raw)
+            meta = json.loads(files[0].with_suffix(".sha256.json")
+                              .read_text())
+            self.assertEqual(meta["sha256"],
+                             hashlib.sha256(osv_raw).hexdigest())
+
+    def test_ghsa_snapshot_stores_exact_gh_stdout_bytes(self):
+        today = dt.date.today().isoformat()
+        kev = (b'{"catalogVersion": "1", "title": "KEV", "dateReleased": "x",'
+               b' "count": 1, "vulnerabilities": [{"cveID": "CVE-A",'
+               b' "dateAdded": "%s"}]}\n' % today.encode())
+        ghsa_raw = (b'[{"ghsa_id": "G-1", "cve_id": "CVE-A",'
+                    b' "severity": "high",'
+                    b' "updated_at": "2026-11-14T00:00:00Z"}]\n')
+
+        def runner(args):
+            return ghsa_raw.decode("utf-8")
+
+        gh = aw.GhCli(runner=runner)
+        t = RouteTransport()
+        t.add(lambda u: "cisa.gov" in u, [kev])
+        t.add(lambda u: "cves/2.0" in u, [self.WIRE_NVD_EMPTY])
+        t.add(lambda u: "api.osv.dev" in u, [http_error(404)])
+        with TempStateDir() as tmp:
+            aw.run(transport=paced(t), gh=gh, state_dir=tmp.path,
+                   enrich_min_interval=0)
+            files = self._evidence_files(tmp, "ghsa")
+            self.assertEqual(len(files), 1,
+                             "raw gh api stdout must be snapshotted")
+            self.assertEqual(files[0].read_bytes(), ghsa_raw)
+            meta = json.loads(files[0].with_suffix(".sha256.json")
+                              .read_text())
+            self.assertEqual(meta["sha256"],
+                             hashlib.sha256(ghsa_raw).hexdigest())
+
+    def test_docs_and_docstring_claim_raw_wire_bytes(self):
         src = (ROOT / "tools" / "advisory_watch.py").read_text()
-        self.assertIn("CANONICALIZED", src)
-        self.assertNotIn("verbatim provider JSON + SHA-256", src)
+        self.assertIn("raw response bytes", src)
+        self.assertNotIn("canonicalized JSON", src)
         ops = (ROOT / "docs" / "advisory-watch-operations.md").read_text()
-        self.assertNotIn("verbatim provider JSON", ops)
-        self.assertIn("canonicalized", ops)
+        self.assertIn("raw response bytes", ops)
+        self.assertNotIn("canonicalized provider JSON", ops)
+        self.assertNotIn("not byte-verbatim", ops)
 
 
 import hashlib  # noqa: E402  (used above)
