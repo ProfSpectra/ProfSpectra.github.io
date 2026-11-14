@@ -1,5 +1,4 @@
 ---
-published: false
 icon: fas fa-shield-alt
 order: 4
 ---

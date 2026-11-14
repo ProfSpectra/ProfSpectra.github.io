@@ -2,6 +2,13 @@
 .bundle
 vendor
 
+# Advisory watch collector: the entire state dir is a local working
+# cache (state.json holds thousands of transient NVD ring items and
+# churns daily; evidence/ holds verbatim provider snapshots). The
+# bounded public record is the Advisory posts — nothing under
+# .advisory-watch/ is committed (see docs/advisory-watch-operations.md).
+.advisory-watch/
+
 # Jekyll cache
 .jekyll-cache
 .jekyll-metadata
@@ -24,3 +31,4 @@ package-lock.json
 # Misc
 _sass/vendors
 assets/js/dist
+__pycache__/

@@ -140,13 +140,13 @@ def tab_fm(stem):
     return front_matter_of(p) if p.is_file() else ""
 
 
-check("nav: advisory tab published:false",
-      re.search(r"^published:\s*false", tab_fm("advisory"), re.M) is not None)
+check("nav: advisory tab published",
+      re.search(r"^published:\s*false", tab_fm("advisory"), re.M) is None)
 check("nav: poc tab published:false",
       re.search(r"^published:\s*false", tab_fm("poc"), re.M) is not None)
 for page_html, label in ((home, "home"), (writeups, "writeups")) if writeups else ((home, "home"),):
-    check("nav: advisory not in nav on %s" % label,
-          not re.search(r'<a href="/advisory/"', page_html))
+    check("nav: advisory in nav on %s" % label,
+          re.search(r'<a href="/advisory/"', page_html) is not None)
     check("nav: poc not in nav on %s" % label,
           not re.search(r'<a href="/poc/"', page_html))
 
