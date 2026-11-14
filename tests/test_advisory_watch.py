@@ -1400,12 +1400,12 @@ class TestContentValidity(unittest.TestCase):
     def test_poc_status_labelled(self):
         for post in self._posts():
             text = post.read_text(encoding="utf-8")
-            m = re.search(r"\*\*PoC status: ([A-Za-z /()-]+)\*\*", text)
+            m = re.search(r"\*\*PoC status: ([A-Za-z /()\n-]+)\*\*", text)
             self.assertIsNotNone(m, "%s missing PoC status" % post.name)
             allowed = {"pending / unverified", "none found",
                        "confirmed working (see verification record)",
                        "not found"}
-            status = m.group(1).strip().lower()
+            status = ' '.join(m.group(1).split()).lower()
             self.assertIn(status, allowed,
                           "%s bad PoC status %r" % (post.name, m.group(1)))
             # a PoC status must never appear in the At-a-glance table only —
