@@ -24,8 +24,9 @@ title: ProfSpectra # the main title
 tagline: Security writeups & field notes # it will display as the subtitle
 
 description: >- # used by seo meta and the atom feed
-  Putra Kaha's security notebook: Hack The Box and PwnTillDawn walkthroughs,
-  reproducible exploit paths, and copy-paste cheatsheets.
+  AI-assisted security research by Username: follow agent-led Hack The Box
+  and PwnTillDawn investigations, reproducible attack paths, and practical
+  cheatsheets.
 
 # Fill in the protocol & hostname for your site.
 # E.g. 'https://username.github.io', note that it does not end with a '/'.
@@ -38,9 +39,8 @@ twitter:
   username: ros_putra # change to your Twitter username
 
 social:
-  # Change to your full name.
-  # It will be displayed as the default author of the posts and the copyright owner in the Footer
-  name: Putra Kaha
+  # Public display name used for the author and footer.
+  name: Username
   email: putraros1226@gmail.com # change to your email address
   links:
     # The first element serves as the copyright owner's link

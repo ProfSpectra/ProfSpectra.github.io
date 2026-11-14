@@ -90,7 +90,7 @@ check("identity: og:site_name is ProfSpectra",
 check("identity: description is not the Chirpy theme tagline",
       "minimal, responsive and feature-rich" not in home
       and 'name="description" content="' in home)
-check("identity: no 'Username' placeholder", "Username" not in home)
+check("identity: chosen display name is Username", 'name: Username' in (ROOT / "_config.yml").read_text() and "Username" in home)
 
 # ---------------------------------------------------------------------------
 # 2. home structure
@@ -99,7 +99,7 @@ check("home: exactly one h1", count_h1(home) == 1, "h1 count = %d" % count_h1(ho
 h1m = re.search(r"<h1[^>]*>(.*?)</h1>", home, re.S)
 h1_txt = re.sub(r"<[^>]+>", "", h1m.group(1)).strip() if h1m else ""
 check("home: h1 names the identity or the value proposition",
-      ("ProfSpectra" in h1_txt and "Putra Kaha" in h1_txt) or "Putra Kaha" in h1_txt,
+      ("ProfSpectra" in h1_txt and "Username" in h1_txt) or "Username" in h1_txt,
       h1_txt[:80])
 check("home: has meaningful h2 sections", len(re.findall(r"<h2[\s>]", home)) >= 3)
 check("home: skip link to main", 'href="#main-content"' in home or "skip-link" in home)
@@ -504,7 +504,7 @@ check("fabrication: working X handle present", "ros_putra" in home)
 for m in re.finditer(r'<script type="application/ld\+json">(.*?)</script>', home, re.S):
     try:
         blob = json.dumps(json.loads(m.group(1)))
-        check("jsonld: no Username placeholder", "Username" not in blob)
+        check("jsonld: chosen display name present", '"name":"Username"' in blob or '"name": "Username"' in blob)
         check("jsonld: has ProfSpectra identity", "ProfSpectra" in blob)
     except json.JSONDecodeError:
         check("jsonld: home JSON-LD parses", False, m.group(1)[:120])

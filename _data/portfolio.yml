@@ -5,12 +5,12 @@
 
 kicker: "Security writeups & field notes"
 
-headline: "Putra Kaha takes machines and web apps apart, then writes down exactly how."
+headline: "Username lets AI do the security work—then documents the path."
 
 lede: >-
-  ProfSpectra is a working notebook of Hack The Box and PwnTillDawn
-  walkthroughs, reproducible exploit paths, and the occasional cheatsheet —
-  written so you can re-run every step.
+  ProfSpectra follows AI agents through Hack The Box and PwnTillDawn
+  investigations, from reconnaissance to root, then turns the results into
+  reproducible walkthroughs and practical cheatsheets.
 
 cta_primary: "Read the writeups"
 cta_secondary: "About & contact"
@@ -35,10 +35,10 @@ focus_heading: "What this site covers"
 
 # Numbered entries; `n` is display-only (01/02/03).
 focus_areas:
-  - name: "Boot2Root walkthroughs"
-    note: "Full kill chains on HTB and PwnTillDawn machines — recon to root, with every command and screenshot."
-  - name: "Reproducible exploit paths"
-    note: "Each finding written to re-run — environment notes, payloads, and the exact steps that worked."
+  - name: "AI-led investigations"
+    note: "Agents explore Hack The Box and PwnTillDawn machines, carrying the work from reconnaissance through the documented proof."
+  - name: "Reproducible attack paths"
+    note: "The agent's route becomes a clear record: environment notes, payloads, and the exact steps that worked."
   - name: "Cheatsheets"
     note: "Short, copy-pasteable reference for file upload tricks and stable shells."
 
@@ -83,7 +83,7 @@ contact_lede: >-
 contact_links:
   - label: "GitHub — ProfSpectra"
     url: https://github.com/ProfSpectra
-  - label: "LinkedIn — Putra Kaha"
+  - label: "LinkedIn — Username"
     url: https://www.linkedin.com/in/putra-kaha
   - label: "X — @ros_putra"
     url: https://x.com/ros_putra

@@ -63,6 +63,11 @@
   }
 }
 
+// Disabled post navigation communicates its state without faint text.
+.post-navigation .disabled > p {
+  color: var(--ps-muted);
+}
+
 // ---------------------------------------------------------------------------
 // Site chrome
 // ---------------------------------------------------------------------------

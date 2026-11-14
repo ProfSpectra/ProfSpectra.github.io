@@ -4,7 +4,7 @@ icon: fas fa-info-circle
 order: 7
 ---
 
-Hi—I'm **Putra Kaha**. This site is my hub for security **writeups** and quick cheat‑sheets. If you're here to learn, verify a technique, or cross‑reference a finding, you're in the right place.
+Hi—I'm **Username**. This site documents **AI-assisted security research**: agents do the hands-on investigation, and I turn their paths into writeups and quick cheat‑sheets you can inspect and reproduce.
 
 ## What you'll find here
 

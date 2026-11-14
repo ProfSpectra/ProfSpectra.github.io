@@ -1,6 +1,6 @@
 # ProfSpectra
 
-Source for [profspectra.github.io](https://profspectra.github.io) — Putra Kaha's security
+Source for [profspectra.github.io](https://profspectra.github.io) — Username's security
 writeups and cheatsheets. Jekyll + the Chirpy theme (gem, not a fork), published as
 plain Markdown. Published under the MIT License (see `LICENSE`).
 
