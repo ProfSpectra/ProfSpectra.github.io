@@ -15,8 +15,25 @@ lede: >-
 cta_primary: "Read the writeups"
 cta_secondary: "About & contact"
 
+# Hero visual: the labels below drive the decorative "field notebook /
+# attack path" motif beside the headline. Purely illustrative — each is a
+# short, truthful fragment of the site's own methodology, never a claim.
+hero_visual:
+  notebook_title: "FIELD NOTES — B2R/011"
+  steps:
+    - label: "RECON"
+      detail: "nmap -sV -sC"
+    - label: "FOOTHOLD"
+      detail: "public exploit path"
+    - label: "PRIVESC"
+      detail: "misconfig review"
+    - label: "PROOF"
+      detail: "user.txt + root.txt"
+  stamp: "REPRODUCIBLE"
+
 focus_heading: "What this site covers"
 
+# Numbered entries; `n` is display-only (01/02/03).
 focus_areas:
   - name: "Boot2Root walkthroughs"
     note: "Full kill chains on HTB and PwnTillDawn machines — recon to root, with every command and screenshot."

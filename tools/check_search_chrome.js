@@ -173,6 +173,140 @@ function assert(name, ok, detail = '') {
   }));
   assert('mobile: sidebar drawer closes via mask', drawerClosed.mask && drawerClosed.bodyAttr, JSON.stringify(drawerClosed));
 
+  // --- drawer accessibility (inert closed drawer, Escape, focus return) ---
+  // closed drawer at 375: inert + aria-hidden so Tab/AT never reach offscreen links
+  const closedState = await page.evaluate(() => ({
+    inert: document.getElementById('sidebar').hasAttribute('inert'),
+    ariaHidden: document.getElementById('sidebar').getAttribute('aria-hidden'),
+    expanded: document.getElementById('sidebar-trigger').getAttribute('aria-expanded'),
+  }));
+  assert('mobile: closed drawer is inert', closedState.inert, JSON.stringify(closedState));
+  assert('mobile: closed drawer is aria-hidden', closedState.ariaHidden === 'true', JSON.stringify(closedState));
+  assert('mobile: trigger aria-expanded=false at rest', closedState.expanded === 'false', JSON.stringify(closedState));
+
+  // Tab never lands inside the closed drawer at 375
+  await page.evaluate(() => { document.querySelector('.skip-link')?.focus(); });
+  let leaked = false;
+  for (let i = 0; i < 25; i++) {
+    await page.keyboard.press('Tab');
+    const inDrawer = await page.evaluate(() => {
+      const sb = document.getElementById('sidebar');
+      return sb.contains(document.activeElement);
+    });
+    if (inDrawer) { leaked = true; break; }
+  }
+  assert('mobile: Tab never enters the closed drawer', !leaked);
+
+  // open drawer: inert removed, trigger reflects open state, usable
+  await page.click('#sidebar-trigger');
+  await page.waitForTimeout(400);
+  const openState = await page.evaluate(() => ({
+    inert: document.getElementById('sidebar').hasAttribute('inert'),
+    expanded: document.getElementById('sidebar-trigger').getAttribute('aria-expanded'),
+    scrollLock: document.body.style.overflow === 'hidden' || getComputedStyle(document.body).overflow === 'hidden',
+    navVisible: getComputedStyle(document.querySelector('#sidebar .nav-link')).display !== 'none',
+  }));
+  assert('mobile: open drawer is not inert', !openState.inert, JSON.stringify(openState));
+  assert('mobile: trigger aria-expanded=true when open', openState.expanded === 'true', JSON.stringify(openState));
+  assert('mobile: body scroll locked while drawer open', openState.scrollLock, JSON.stringify(openState));
+
+  // a nav link in the open drawer receives keyboard focus with a visible outline
+  await page.evaluate(() => document.querySelector('#sidebar .nav-link').focus());
+  const drawerFocus = await page.evaluate(() => {
+    const el = document.querySelector('#sidebar .nav-link');
+    const cs = getComputedStyle(el);
+    return { focused: document.activeElement === el, outline: cs.outlineStyle, width: cs.outlineWidth };
+  });
+  assert('mobile: open drawer nav focusable', drawerFocus.focused, JSON.stringify(drawerFocus));
+
+  // Escape closes the drawer and restores focus to the trigger
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  const escState = await page.evaluate(() => ({
+    bodyAttr: !document.body.hasAttribute('sidebar-display'),
+    focusOnTrigger: document.activeElement && document.activeElement.id === 'sidebar-trigger',
+    inert: document.getElementById('sidebar').hasAttribute('inert'),
+  }));
+  assert('mobile: Escape closes drawer', escState.bodyAttr, JSON.stringify(escState));
+  assert('mobile: Escape returns focus to trigger', escState.focusOnTrigger, JSON.stringify(escState));
+  assert('mobile: drawer inert again after Escape close', escState.inert, JSON.stringify(escState));
+
+  // main-content pointerdown dismisses the drawer without blocking links
+  await page.click('#sidebar-trigger');
+  await page.waitForTimeout(300);
+  await page.mouse.click(300, 500); // inside main content
+  await page.waitForTimeout(300);
+  const mainDismiss = await page.evaluate(() => ({
+    bodyAttr: !document.body.hasAttribute('sidebar-display'),
+    href: document.querySelector('.ps-cta a')?.getAttribute('href'),
+  }));
+  assert('mobile: main-content click dismisses drawer', mainDismiss.bodyAttr, JSON.stringify(mainDismiss));
+
+  // drawer open must not push the document horizontally
+  await page.click('#sidebar-trigger');
+  await page.waitForTimeout(300);
+  const pushed = await page.evaluate(() => ({
+    overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    left: document.documentElement.scrollLeft,
+  }));
+  assert('mobile: drawer open does not horizontally push document', pushed.overflow <= 0 && pushed.left === 0, JSON.stringify(pushed));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(200);
+
+  // --- mobile search: Escape closes and restores focus to the trigger ---
+  await page.click('#search-trigger');
+  await page.waitForTimeout(300);
+  const searchOpenState = await page.evaluate(() => ({
+    open: document.querySelector('#search-cancel').classList.contains('d-block'),
+    focusInInput: document.activeElement && document.activeElement.id === 'search-input',
+  }));
+  assert('mobile: search opens with focus in input', searchOpenState.open && searchOpenState.focusInInput, JSON.stringify(searchOpenState));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+  const searchEsc = await page.evaluate(() => ({
+    closed: !document.querySelector('#search-cancel').classList.contains('d-block'),
+    focusOnTrigger: document.activeElement && document.activeElement.id === 'search-trigger',
+  }));
+  assert('mobile: Escape closes search', searchEsc.closed, JSON.stringify(searchEsc));
+  assert('mobile: Escape returns focus to search trigger', searchEsc.focusOnTrigger, JSON.stringify(searchEsc));
+
+  // --- desktop: sidebar never inert, aria-expanded absent-state safe ---
+  const desk = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await desk.goto(BASE, { waitUntil: 'networkidle' });
+  const deskState = await desk.evaluate(() => ({
+    inert: document.getElementById('sidebar').hasAttribute('inert'),
+    ariaHidden: document.getElementById('sidebar').getAttribute('aria-hidden'),
+  }));
+  assert('desktop: sidebar never inert', !deskState.inert, JSON.stringify(deskState));
+  assert('desktop: sidebar never aria-hidden', deskState.ariaHidden !== 'true', JSON.stringify(deskState));
+  await desk.close();
+
+  // --- 200% text zoom at 320px: no document overflow, header not clipped ---
+  const zoom = await browser.newPage({ viewport: { width: 320, height: 720 } });
+  await zoom.goto(BASE, { waitUntil: 'networkidle' });
+  await zoom.evaluate(() => { document.body.style.fontSize = '200%'; });
+  await zoom.waitForTimeout(400);
+  const zoomState = await zoom.evaluate(() => {
+    const de = document.documentElement;
+    const title = document.querySelector('.ps-title');
+    const tb = document.querySelector('#topbar');
+    return {
+      overflow: de.scrollWidth - de.clientWidth,
+      titleVisible: title ? title.getBoundingClientRect().width > 0 : false,
+      topbarW: tb ? tb.getBoundingClientRect().width : 0,
+      clientW: de.clientWidth,
+    };
+  });
+  assert('textzoom200@320: no horizontal overflow', zoomState.overflow <= 0, JSON.stringify(zoomState));
+  assert('textzoom200@320: hero content still visible', zoomState.titleVisible, JSON.stringify(zoomState));
+  // controls keep >=44px at 200% zoom
+  const zoomCta = await zoom.evaluate(() => {
+    const b = document.querySelector('.ps-cta .ps-btn');
+    return b ? { w: b.getBoundingClientRect().width, h: b.getBoundingClientRect().height } : null;
+  });
+  assert('textzoom200@320: CTA >=44px', zoomCta && zoomCta.h >= 44, JSON.stringify(zoomCta));
+  await zoom.close();
+
   await page.close();
   await browser.close();
 

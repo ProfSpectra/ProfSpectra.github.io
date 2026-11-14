@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "Hack The Box - Touch"
-description: A Hack The Box Boot2Root Challenge Rated Easy - by ProfSpectra
+description: "HTB Touch walkthrough - a Windows kiosk box: Nexion DeviceHub default password, an Edge file:// escape, and a printer-plugin service hijack to root"
 tags: HackTheBox Windows Boot2Root Easy
 media_subpath: /assets/img/writeups/HackTheBox/Touch/
 image:

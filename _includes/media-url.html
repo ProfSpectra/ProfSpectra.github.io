@@ -15,7 +15,15 @@
 
 {% assign url = include.src %}
 
+{%- comment -%}
+  ProfSpectra: percent-encode unsafe characters (spaces in paths like
+  ".../Hack The Box/...") so og:image / twitter:image / JSON-LD URLs are
+  valid, decodable URLs. Spaces must not appear literally in generated URLs;
+  decode locally (unquote) maps them back to the real files.
+{%- endcomment -%}
+
 {%- if url -%}
+  {%- assign url = url | uri_escape -%}
   {%- assign url_head = url | slice: 0 -%}
   {% unless url contains ':' or url_head == '/' %}
     {%- comment -%} Add media resources subpath prefix {%- endcomment -%}

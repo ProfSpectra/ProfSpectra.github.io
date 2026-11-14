@@ -35,7 +35,7 @@ layout: compress
         {% include topbar.html lang=lang %}
 
         <div class="row flex-grow-1">
-          <main aria-label="Main Content" id="main-content" class="col-12 col-lg-11 col-xl-9 px-md-4">
+          <main aria-label="Main Content" id="main-content" class="{% if page.layout == 'home' %}col-12 col-lg-11 col-xl-12 px-md-4{% else %}col-12 col-lg-11 col-xl-9 px-md-4{% endif %}">
             {% if layout.layout == 'default' %}
               {% include refactor-content.html content=content lang=lang %}
             {% else %}
@@ -75,8 +75,8 @@ layout: compress
       </div>
 
       <aside aria-label="Scroll to Top">
-        <button id="back-to-top" type="button" class="btn btn-lg btn-box-shadow">
-          <i class="fas fa-angle-up"></i>
+        <button id="back-to-top" type="button" class="btn btn-lg btn-box-shadow" aria-label="Back to top">
+          <i class="fas fa-angle-up" aria-hidden="true"></i>
         </button>
       </aside>
     </div>

@@ -8,10 +8,12 @@
 -->
 
 {% if _content contains '<table' %}
+  {% comment %} tabindex=0: the wrapper scrolls horizontally; keyboard users
+  must be able to reach it (WCAG 2.1.1 / axe scrollable-region-focusable) {%- endcomment %}
   {% assign _content = _content
-    | replace: '<table', '<div class="table-wrapper"><table'
+    | replace: '<table', '<div class="table-wrapper" tabindex="0" role="region" aria-label="Data table"><table'
     | replace: '</table>', '</table></div>'
-    | replace: '<code><div class="table-wrapper">', '<code>'
+    | replace: '<code><div class="table-wrapper" tabindex="0" role="region" aria-label="Data table">', '<code>'
     | replace: '</table></div></code>', '</table></code>'
   %}
 {% endif %}
@@ -27,15 +29,6 @@
     | replace: '<div class="highlight"><pre class="highlight"><code', '<div class="highlight"><code'
     | replace: '</code></pre></div>', '</code></div>'
   %}
-{% endif %}
-
-<!--
-  ProfSpectra: code blocks scroll horizontally; make each scrollable region
-  keyboard-focusable (WCAG 2.1.1 / axe scrollable-region-focusable).
--->
-
-{% if _content contains '<div class="highlight">' %}
-  {% assign _content = _content | replace: '<div class="highlight">', '<div class="highlight" tabindex="0">' %}
 {% endif %}
 
 <!-- Change the icon of checkbox -->
@@ -137,14 +130,24 @@
     {% assign _final_src = null %}
     {% assign _lazyload = true %}
 
+    {%- comment -%}
+      ProfSpectra: the post cover (emitted by the post layout with
+      fetchpriority="high") is the page's LCP element — never lazy-load it.
+      Every other body image keeps the theme's lazy default.
+    {%- endcomment -%}
+    {% if _left contains 'fetchpriority' %}
+      {% assign _lazyload = false %}
+    {% endif %}
+
+    {%- assign _src_esc = _src | uri_escape -%}
     {%- capture _img_url -%}
       {% include media-url.html src=_src subpath=page.media_subpath %}
     {%- endcapture -%}
 
-    {% assign _path_prefix = _img_url | remove: _src %}
+    {% assign _path_prefix = _img_url | remove: _src_esc %}
 
     {% unless _src contains '//' %}
-      {% assign _final_src = _path_prefix | append: _src %}
+      {% assign _final_src = _path_prefix | append: _src_esc %}
       {% assign _src_alt = 'src="' | append: _path_prefix %}
       {% assign _left = _left | replace: 'src="', _src_alt %}
     {% endunless %}
@@ -215,6 +218,16 @@
 
 <!-- Add header for code snippets -->
 
+{%- comment -%}
+  ProfSpectra: while adding each code-header, also make the code block's
+  scrollable region keyboard-focusable (WCAG 2.1.1) with a meaningful
+  accessible label (axe scrollable-region-focusable). This must happen HERE:
+  an earlier standalone tabindex rewrite ran before this split, changed
+  '<div class="highlight"><code>' to '<div class="highlight" tabindex="0"><code>'
+  and made this split match nothing — which silently removed all code-headers
+  and copy buttons. The label reuses the header's own label text.
+{%- endcomment -%}
+
 {% if _content contains '<div class="highlight"><code>' %}
   {% assign _code_spippets = _content | split: '<div class="highlight"><code>' %}
   {% assign _new_content = '' %}
@@ -239,14 +252,19 @@
         <span data-label-text="{{ _label_text | strip }}"><i class="{{ _label_icon }}"></i></span>
       {% endcapture %}
 
+      {% capture _region_open -%}
+        <div class="highlight" tabindex="0" role="region" aria-label="Code block: {{ _label_text | strip }}">
+      {%- endcapture %}
+
       {% assign _new_content = _new_content
         | append: _snippet
         | append: '<div class="code-header">'
         | append: _label
-        | append: '<button aria-label="copy" data-title-succeed="'
+        | append: '<button aria-label="Copy code" data-title-succeed="'
         | append: site.data.locales[include.lang].post.button.copy_code.succeed
         | append: '"><i class="far fa-clipboard"></i></button></div>'
-        | append: '<div class="highlight"><code>'
+        | append: _region_open
+        | append: '<code>'
       %}
     {% endif %}
   {% endfor %}
@@ -274,16 +292,14 @@
       {% endif %}
 
       {% assign id = snippet | split: '"' | first %}
-      {% assign anchor = '<a href="#'
-        | append: id
-        | append: '" class="anchor text-muted" aria-label="Link to section: '
-        | append: id
-        | append: '"><i class="fas fa-hashtag" aria-hidden="true"></i></a>'
-      %}
-
       {% assign left = snippet | split: mark_end | first %}
       {% assign right = snippet | slice: left.size, snippet.size %}
       {% assign left = left | replace_first: '">', '"><span class="me-2">' | append: '</span>' %}
+      {% assign heading_text = left | split: '<span class="me-2">' | last | split: '</span>' | first | strip %}
+      {% capture anchor %}<a href="#{{ id }}"
+        class="anchor text-muted"
+        aria-label="Link to section: {{ heading_text | strip }}"
+      ><i class="fas fa-hashtag" aria-hidden="true"></i></a>{% endcapture %}
 
       {% assign _new_content = _new_content | append: mark_start | append: left | append: anchor | append: right %}
     {% endfor %}

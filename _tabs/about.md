@@ -4,14 +4,12 @@ icon: fas fa-info-circle
 order: 7
 ---
 
-Hi—I'm **Putra Kaha**. This site is my hub for security **writeups**, CTF solutions, pentest notes, and quick cheat‑sheets. If you’re here to learn, verify a technique, or cross‑reference a finding, you’re in the right place.
+Hi—I'm **Putra Kaha**. This site is my hub for security **writeups** and quick cheat‑sheets. If you're here to learn, verify a technique, or cross‑reference a finding, you're in the right place.
 
 ## What you'll find here
 
-* **CTF writeups** — step‑by‑step paths, payloads, and lessons learned.
-* **Pentest notes** — reproducible PoCs with impact, mitigation, and mapping to OWASP/CIS/RMiT where relevant.
-* **Cheat‑sheets** — short, copy‑pasteable commands for web, AD, cloud, and mobile testing.
-* **Talks & slides** — decks, labs, and training materials I’ve released.
+* **CTF writeups** — step‑by‑step Hack The Box and PwnTillDawn kill chains: recon to both flags, with every command and screenshot.
+* **Cheat‑sheets** — short, copy‑pasteable commands for file upload tricks and stable shells.
 
 ---
 
@@ -21,7 +19,7 @@ Hi—I'm **Putra Kaha**. This site is my hub for security **writeups**, CTF solu
 
 ## Tools & lab
 
-Burp Suite Pro, nmap, Nessus, sqlmap, dirsearch, BloodHound/Impacket, kerbrute, responder, Wireshark, Docker, k6, and a rotating cast of custom scripts.
+Burp Suite Pro, nmap, Nessus, sqlmap, dirsearch, Wireshark, Docker, and a rotating cast of custom scripts.
 
 ## Contact & links
 
@@ -29,3 +27,6 @@ Burp Suite Pro, nmap, Nessus, sqlmap, dirsearch, BloodHound/Impacket, kerbrute, 
 * **GitHub:** [https://github.com/ProfSpectra](https://github.com/ProfSpectra)
 * **LinkedIn:** [https://www.linkedin.com/in/putra-kaha](https://www.linkedin.com/in/putra-kaha)
 
+---
+
+*Some machine walkthroughs on this site were solved autonomously by the ProfSpectra AI agent; each writeup states so in its own post.*

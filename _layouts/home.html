@@ -4,74 +4,135 @@ layout: default
 
 {%- comment -%}
   ProfSpectra portfolio home.
-  Everything a maintainer edits lives in _data/portfolio.yml;
-  post metadata comes from each post's front matter.
+  Everything a maintainer edits lives in _data/portfolio.yml (copy, hero
+  visual labels, focus areas, featured selection); post metadata comes from
+  each post's front matter. This layout only composes.
+
+  Structure notes:
+  - One H1 (the headline); the hero motif is a decorative aside (aria-hidden).
+  - Selected writeups are editorial records with real cover images
+    (natural ratio, object-fit: contain), metadata chips, and one link
+    per card (the title; the "Read walkthrough" line is a styled span,
+    not a nested link).
+  - The contact block is a dark ink panel so the page has one contrasting
+    surface before the footer.
+  - Works with JS off: all content is in the static HTML.
 {%- endcomment -%}
 
 {% include lang.html %}
 
 {% assign portfolio = site.data.portfolio %}
 {% assign featured = portfolio.featured_writeups %}
-{% assign latest = site.posts | limit: portfolio.latest_count | default: 4 %}
+{% assign latest_count = portfolio.latest_count | default: 4 %}
 
 <div class="ps-home">
 
   <header class="ps-hero">
-    <p class="ps-kicker">{{ portfolio.kicker }}</p>
-    <h1 class="ps-title">
-      {{ portfolio.headline }}
-    </h1>
-    <p class="ps-lede">{{ portfolio.lede }}</p>
-    <nav class="ps-cta" aria-label="Primary actions">
-      <a class="ps-btn" href="{{ '/writeups/' | relative_url }}">{{ portfolio.cta_primary }}</a>
-      <a class="ps-btn ps-btn-quiet" href="{{ '/about/' | relative_url }}">{{ portfolio.cta_secondary }}</a>
-    </nav>
+    <div class="ps-hero-copy">
+      <p class="ps-kicker">{{ portfolio.kicker }}</p>
+      <h1 class="ps-title">
+        {{ portfolio.headline }}
+      </h1>
+      <p class="ps-lede">{{ portfolio.lede }}</p>
+      <nav class="ps-cta" aria-label="Primary actions">
+        <a class="ps-btn" href="{{ '/writeups/' | relative_url }}">{{ portfolio.cta_primary }}</a>
+        <a class="ps-btn ps-btn-quiet" href="{{ '/about/' | relative_url }}">{{ portfolio.cta_secondary }}</a>
+      </nav>
+    </div>
+
+    {%- assign hv = portfolio.hero_visual -%}
+    {%- if hv -%}
+      {%- comment -%} Decorative field-notebook motif; hidden from AT (the real
+      content is the headline, lede and CTAs above). {%- endcomment -%}
+      <div class="ps-hero-visual" aria-hidden="true">
+        <div class="ps-notebook">
+          <p class="ps-notebook-title">{{ hv.notebook_title }}</p>
+          <ol class="ps-notebook-steps">
+            {%- for step in hv.steps -%}
+              <li>
+                <span class="ps-step-marker"></span>
+                <span class="ps-step-label">{{ step.label }}</span>
+                <span class="ps-step-detail">{{ step.detail }}</span>
+              </li>
+            {%- endfor -%}
+          </ol>
+          <p class="ps-notebook-stamp">{{ hv.stamp }}</p>
+        </div>
+      </div>
+    {%- endif -%}
   </header>
 
   <section class="ps-section ps-focus" aria-labelledby="ps-focus-heading">
     <h2 id="ps-focus-heading" class="ps-section-title">{{ portfolio.focus_heading }}</h2>
-    <ul class="ps-focus-list">
+    <ol class="ps-focus-list">
       {%- for area in portfolio.focus_areas -%}
+        {%- assign n = forloop.index | prepend: '0' | slice: -2, 2 -%}
         <li>
-          <h3 class="ps-focus-name">{{ area.name }}</h3>
-          <p class="ps-focus-note">{{ area.note }}</p>
+          <span class="ps-focus-n" aria-hidden="true">{{ n }}</span>
+          <div class="ps-focus-body">
+            <h3 class="ps-focus-name">{{ area.name }}</h3>
+            <p class="ps-focus-note">{{ area.note }}</p>
+          </div>
         </li>
       {%- endfor -%}
-    </ul>
+    </ol>
   </section>
 
-  <section class="ps-section" aria-labelledby="ps-featured-heading">
-    <h2 id="ps-featured-heading" class="ps-section-title">{{ portfolio.featured_heading }}</h2>
+  {%- comment -%} Selected writeups: a contrasting ink band holding editorial
+  record cards with real covers. {%- endcomment -%}
+  <section class="ps-band ps-band-ink" aria-labelledby="ps-featured-heading">
+    <div class="ps-band-inner">
+      <h2 id="ps-featured-heading" class="ps-section-title ps-band-title">{{ portfolio.featured_heading }}</h2>
 
-    {%- for entry in featured -%}
-      {%- assign the_post = site.posts | where: 'url', entry.path | first -%}
-      {%- if the_post -%}
-        <article class="ps-record">
-          <div class="ps-record-meta">
-            {%- for tag in the_post.tags -%}
-              {%- if tag == 'Easy' or tag == 'Medium' or tag == 'Hard' or tag == 'Difficult' -%}
-                <span class="chip">{{ tag }}</span>
-              {%- endif -%}
-              {%- if tag == 'Linux' or tag == 'Windows' -%}
-                <span class="chip">{{ tag }}</span>
-              {%- endif -%}
-            {%- endfor -%}
-            <time datetime="{{ the_post.date | date_to_xmlschema }}">{{ the_post.date | date: "%b %-d, %Y" }}</time>
-          </div>
-          <h3 class="ps-record-title"><a href="{{ the_post.url | relative_url }}">{{ the_post.title | escape }}</a></h3>
-          <p class="ps-record-note">{{ entry.note }}</p>
-          <p class="ps-record-desc">{{ the_post.description | default: entry.note | strip_html | escape }}</p>
-        </article>
-      {%- endif -%}
-    {%- endfor -%}
+      {%- for entry in featured -%}
+        {%- assign the_post = site.posts | where: 'url', entry.path | first -%}
+        {%- if the_post -%}
+          {%- assign img_path = the_post.image.path | default: the_post.image -%}
+          <article class="ps-record">
+            {%- if img_path -%}
+              {%- assign img_url = img_path | uri_escape -%}
+              <div class="ps-record-coverwrap" aria-hidden="true">
+                {%- if forloop.first -%}
+                  <img class="ps-record-cover" src="{{ img_url | relative_url }}" alt="" width="{{ the_post.image.width | default: 890 }}" height="{{ the_post.image.height | default: 308 }}" fetchpriority="high">
+                {%- else -%}
+                  <img class="ps-record-cover" src="{{ img_url | relative_url }}" alt="" width="{{ the_post.image.width | default: 890 }}" height="{{ the_post.image.height | default: 308 }}" loading="lazy">
+                {%- endif -%}
+              </div>
+            {%- endif -%}
+            <div class="ps-record-copy">
+              <div class="ps-record-meta">
+              {%- for tag in the_post.tags -%}
+                {%- if tag == 'Easy' or tag == 'Medium' or tag == 'Hard' or tag == 'Difficult' -%}
+                  <span class="chip chip-diff">{{ tag }}</span>
+                {%- endif -%}
+                {%- if tag == 'Linux' or tag == 'Windows' -%}
+                  <span class="chip">{{ tag }}</span>
+                {%- endif -%}
+                {%- if tag == 'HackTheBox' -%}
+                  <span class="chip chip-platform">HTB</span>
+                {%- endif -%}
+                {%- if tag == 'PwnTillDawn' -%}
+                  <span class="chip chip-platform">PwnTillDawn</span>
+                {%- endif -%}
+              {%- endfor -%}
+              <time datetime="{{ the_post.date | date_to_xmlschema }}">{{ the_post.date | date: "%b %-d, %Y" }}</time>
+              </div>
+              <h3 class="ps-record-title"><a href="{{ the_post.url | relative_url }}">{{ the_post.title | escape }}</a></h3>
+              <p class="ps-record-note">{{ entry.note }}</p>
+              <p class="ps-record-read" aria-hidden="true">Read walkthrough <span>→</span></p>
+            </div>
+          </article>
+        {%- endif -%}
+      {%- endfor -%}
 
-    <p><a class="ps-more" href="{{ '/writeups/' | relative_url }}">{{ portfolio.all_writeups_label }} <span aria-hidden="true">→</span></a></p>
+      <p><a class="ps-more ps-more-band" href="{{ '/writeups/' | relative_url }}">{{ portfolio.all_writeups_label }} <span aria-hidden="true">→</span></a></p>
+    </div>
   </section>
 
   <section class="ps-section" aria-labelledby="ps-latest-heading">
     <h2 id="ps-latest-heading" class="ps-section-title">{{ portfolio.latest_heading }}</h2>
     <ul class="ps-latest-list">
-      {%- for post in latest -%}
+      {%- for post in site.posts limit: latest_count -%}
         <li>
           <a href="{{ post.url | relative_url }}">{{ post.title | escape }}</a>
           <time datetime="{{ post.date | date_to_xmlschema }}">{{ post.date | date: "%b %-d, %Y" }}</time>
@@ -93,8 +154,9 @@ layout: default
     </ul>
   </section>
 
-  <section class="ps-section ps-contact" aria-labelledby="ps-contact-heading">
-    <h2 id="ps-contact-heading" class="ps-section-title">{{ portfolio.contact_heading }}</h2>
+  {%- comment -%} Contact: dark ink panel — the page's closing surface. {%- endcomment -%}
+  <section class="ps-contact-panel" aria-labelledby="ps-contact-heading">
+    <h2 id="ps-contact-heading" class="ps-contact-title">{{ portfolio.contact_heading }}</h2>
     <p class="ps-contact-lede">{{ portfolio.contact_lede }}</p>
     <ul class="ps-contact-links">
       {%- for link in portfolio.contact_links -%}

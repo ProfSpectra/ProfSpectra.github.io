@@ -127,6 +127,9 @@
 
   {% include js-selector.html lang=lang %}
 
+  <!-- ProfSpectra UI: drawer inert/Escape/focus-return enhancements -->
+  <script defer src="{{ '/assets/js/profspectra-ui.js' | relative_url }}"></script>
+
   {% if jekyll.environment == 'production' %}
     <!-- PWA -->
     {% if site.pwa.enabled %}

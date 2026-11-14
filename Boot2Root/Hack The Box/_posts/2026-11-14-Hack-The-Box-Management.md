@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "Hack The Box - Management"
-description: A Hack The Box Boot2Root Challenge Rated Easy - by ProfSpectra
+description: HTB Management walkthrough - OpenAM pre-auth deserialization (CVE-2026-33439) to GLPI credential reuse and a sudo rdiff-backup root read
 tags: HackTheBox Linux Boot2Root Easy
 media_subpath: /assets/img/writeups/Hack The Box/Management/
 image:

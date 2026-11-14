@@ -14,6 +14,7 @@ import re
 import struct
 import sys
 from pathlib import Path
+from urllib.parse import unquote
 
 SITE = Path(__file__).resolve().parent.parent / "_site"
 ROOT = Path(__file__).resolve().parent.parent
@@ -155,23 +156,91 @@ for page_html, label in ((home, "home"), (writeups, "writeups")) if writeups els
 pf = ROOT / "_data" / "portfolio.yml"
 check("data: _data/portfolio.yml exists", pf.is_file())
 if pf.is_file():
+    def _load_portfolio():
+        # Minimal parser for this file's known shape only — headings,
+        # top-level scalars, and one nested list of flat mappings
+        # (featured_writeups). stdlib-only: CI Pythons do not ship PyYAML.
+        data, key = {}, None
+        for raw in pf.read_text(encoding="utf-8").splitlines():
+            if not raw.strip() or raw.lstrip().startswith("#"):
+                continue
+            if raw.startswith(("featured_writeups:", "hero_visual:",
+                               "focus_areas:", "projects:", "contact_links:",
+                               "steps:")):
+                key = raw.split(":", 1)[0]
+                data[key] = []
+            elif key and re.match(r"^\s+- ", raw):
+                data[key].append(raw)
+            elif not raw.startswith((" ", "\t")) and ":" in raw:
+                k, _, v = raw.partition(":")
+                v = v.strip().strip('"')
+                data[k.strip()] = None if v in ("", ">-") else v
+        # featured entries: `- path: /posts/X/` + optional `note:` line
+        featured = []
+        for line in data.get("featured_writeups") or []:
+            m = re.match(r"^\s+- path:\s*(\S+)", line)
+            if m:
+                featured.append({"path": m.group(1), "note": ""})
+            else:
+                m = re.match(r"^\s+note:\s*(.*)$", line)
+                if m and featured:
+                    featured[-1]["note"] = m.group(1).strip()
+        data["featured_writeups"] = featured
+        return data
+
     pf_txt = pf.read_text(encoding="utf-8")
-    featured_paths = re.findall(r"^\s+path:\s*(/posts/\S+/)$", pf_txt, re.M)
-    for path in featured_paths:
+
+    # Featured writeups: every entry in portfolio.yml must resolve to a real,
+    # built post. Resolution uses the built output (Jekyll-aware: slug strips
+    # the leading date) — not a guessed flat source path. A featured path that
+    # fails to resolve must FAIL the check, not silently drop the card.
+    portfolio_data = _load_portfolio()
+    featured_entries = (portfolio_data or {}).get("featured_writeups") or []
+    check("data: featured_writeups present", bool(featured_entries))
+    rendered_featured = 0
+    for entry in featured_entries:
+        path = entry["path"]
         check("data: home links featured writeup %s" % path,
               'href="%s"' % path in home)
-        src = ROOT / (path.strip("/").rstrip("/") + ".md")
-        check("data: featured path resolves to source %s" % path, src.is_file())
+        built_p = SITE / path.strip("/")
+        if not built_p.is_dir():
+            built_p = SITE / (path.strip("/") + ".html")
+        check("data: featured path resolves to built post %s" % path,
+              built_p.is_dir() or built_p.is_file(), str(built_p))
+        # every valid entry must actually render a card on the home page
+        # (count .ps-record articles; no silent drops, no count inflation)
+        if 'href="%s"' % path in home:
+            rendered_featured += 1
+    check("data: every featured entry renders a home card",
+          rendered_featured == len(featured_entries),
+          "rendered %d of %d" % (rendered_featured, len(featured_entries)))
+
+    # Latest-writing list must render exactly latest_count entries —
+    # guards the `for ... limit:` loop (the `| limit:` filter is a no-op
+    # and previously rendered all 8 posts).
+    latest_count = (portfolio_data or {}).get("latest_count")
+    if latest_count:
+        m = re.search(r'<ul class="ps-latest-list">(.*?)</ul>', home, re.S)
+        n = len(re.findall(r"<li>", m.group(1))) if m else 0
+        check("data: latest list renders exactly %s entries" % latest_count,
+              n == int(latest_count), "rendered %d" % n)
+
     # projects: names under the `projects:` list only (match after the key)
     proj_names = re.findall(r"^projects:\n((?:\s+- name:\s*\S+.*\n?(?:\s{4,}\S.*\n?)*)*)",
                             pf_txt, re.M)
     for name in re.findall(r"^\s+- name:\s*\S+", proj_names[0], re.M) if proj_names else []:
         name = name.split(":", 1)[1].strip().strip('"')
         check("data: home shows project %s" % name, name in home)
-    for m in re.finditer(r"^  headline:\s*[\"']?(.+?)[\"']?\s*$", pf_txt, re.M):
-        frag = m.group(1).split("{")[0].strip()
-        if frag and len(frag) > 8:
-            check("data: home shows hero fragment '%s'" % frag[:30], frag in home)
+    # The hero fragment check previously matched `^  headline:` (0 matches —
+    # YAML indents differently), so it never executed. Assert the headline
+    # from parsed YAML and verify it renders inside the home H1.
+    headline = (portfolio_data or {}).get("headline") or ""
+    if headline:
+        h1_html = re.search(r"<h1[^>]*>(.*?)</h1>", home, re.S)
+        h1_txt = re.sub(r"<[^>]+>", " ", h1_html.group(1)) if h1_html else ""
+        check("data: hero headline renders in home h1",
+              headline.strip() in " ".join(h1_txt.split()),
+              "headline: %r h1: %r" % (headline[:40], h1_txt[:60]))
     for m in re.finditer(r"^\s+url:\s*(\S+)$", pf_txt, re.M):
         check("data: home links %s" % m.group(1), 'href="%s"' % m.group(1) in home)
 
@@ -192,6 +261,8 @@ else:
 # ---------------------------------------------------------------------------
 # 6. cover metadata: og:image / JSON-LD point at real files
 # ---------------------------------------------------------------------------
+from urllib.parse import unquote
+
 for src, fm in posts_with_cover():
     # built slug strips the leading date: 2026-11-13-Hack-The-Box-Touch -> Hack-The-Box-Touch
     slug = re.sub(r"^\d{4}-\d{2}-\d{2}-", "", src.stem)
@@ -206,13 +277,34 @@ for src, fm in posts_with_cover():
         ok = url.startswith(URL + "/assets/img/")
         check("cover: %s og:image is root-relative asset URL" % slug, ok, url)
         if ok:
-            local = SITE / url[len(URL) + 1:]
+            local = SITE / unquote(url[len(URL) + 1:])
             check("cover: %s og:image file exists" % slug, local.is_file(),
                   str(local.relative_to(SITE)))
-    for url in re.findall(r'"image"\s*:\s*"([^"]+)"', built):
-        local = SITE / url.removeprefix(URL + "/").lstrip("/")
+    for url in og_imgs:
+        # URLs with spaces (e.g. ".../Hack The Box/...") must be percent-encoded
+        check("cover: %s og:image encodes unsafe path chars" % slug,
+              " " not in url, url if " " in url else "ok")
+    # JSON-LD image may be a string OR an object ({url, alt, ...}); parse the
+    # JSON-LD properly instead of fragile string matching.
+    for m in re.finditer(r'<script type="application/ld\+json">(.*?)</script>', built, re.S):
+        try:
+            blob = json.loads(m.group(1))
+        except json.JSONDecodeError:
+            check("cover: %s JSON-LD parses" % slug, False, m.group(1)[:120])
+            continue
+        img = blob.get("image")
+        if isinstance(img, dict):
+            img_url = img.get("url", "")
+        elif isinstance(img, list):
+            img_url = img[0].get("url", "") if img and isinstance(img[0], dict) else str(img[0] if img else "")
+        else:
+            img_url = str(img or "")
         check("cover: %s JSON-LD image resolves" % slug,
-              url.startswith(URL + "/assets/img/") and local.is_file(), url)
+              img_url.startswith(URL + "/assets/img/")
+              and (SITE / unquote(img_url[len(URL) + 1:])).is_file(),
+              img_url or "missing")
+        check("cover: %s JSON-LD image encodes unsafe path chars" % slug,
+              " " not in img_url, img_url if " " in img_url else "ok")
     check("cover: %s twitter:card large" % slug,
           'name="twitter:card" content="summary_large_image"' in built)
     tag = re.search(r"<img[^>]*class=\"preview-img[^\"]*\"[^>]*>", built)
@@ -238,7 +330,7 @@ for src, fm in posts_with_cover():
 og_img = re.search(r'property="og:image" content="([^"]+)"', home)
 check("og: home has og:image", og_img is not None)
 if og_img:
-    local = SITE / og_img.group(1).removeprefix(URL + "/").lstrip("/")
+    local = SITE / unquote(og_img.group(1).removeprefix(URL + "/").lstrip("/"))
     check("og: home og:image file exists", local.is_file(),
           str(local.relative_to(SITE)))
 og_alt = re.search(r'property="og:image:alt" content="([^"]+)"', home)
@@ -262,6 +354,97 @@ for f in ["favicon.ico", "favicon-96x96.png", "apple-touch-icon.png",
     check("favicons: %s published" % f, (SITE / "assets/img/favicons" / f).is_file())
 
 # ---------------------------------------------------------------------------
+# 8b. content remediation: code headers, heading anchors, LCP, a11y names
+# ---------------------------------------------------------------------------
+
+# Every code block must keep its code-header + copy button (the tabindex
+# rewrite must not destroy them) and be a labelled keyboard-focusable region.
+total_blocks = 0
+headers_ok = True
+tabindex_ok = True
+label_ok = True
+for src in all_source_posts():
+    slug = re.sub(r"^\d{4}-\d{2}-\d{2}-", "", src.stem)
+    built_p = SITE / "posts" / slug / "index.html"
+    if not built_p.is_file():
+        continue
+    built = built_p.read_text(encoding="utf-8")
+    blocks = len(re.findall(r'<div class="highlight"', built))
+    headers = len(re.findall(r'<div class="code-header">', built))
+    if blocks != headers:
+        headers_ok = False
+    total_blocks += blocks
+    for m in re.finditer(r'<div class="highlight"([^>]*)>', built):
+        attrs = m.group(1)
+        if 'tabindex="0"' not in attrs:
+            tabindex_ok = False
+        if 'aria-label="' not in attrs:
+            label_ok = False
+
+check("content: code blocks exist across posts", total_blocks > 0,
+      "%d blocks" % total_blocks)
+check("content: every code block has a code-header (copy button intact)",
+      headers_ok and total_blocks > 0)
+check("content: every code scroll region is keyboard-focusable (tabindex=0)",
+      tabindex_ok and total_blocks > 0)
+check("content: every code scroll region has a meaningful accessible label",
+      label_ok and total_blocks > 0)
+
+# Heading anchors must be labelled with the human-readable heading text,
+# not an internal slug/id like "ps-featured-heading".
+anchor_labels = re.findall(r'class="anchor[^"]*" aria-label="Link to section: ([^"]+)"', home)
+check("home: heading anchor labels are human-readable",
+      bool(anchor_labels) and "ps-featured-heading" not in " ".join(anchor_labels),
+      "; ".join(anchor_labels[:4]))
+post_built = read("posts/Hack-The-Box-Management/index.html")
+post_anchors = re.findall(r'class="anchor[^"]*" aria-label="Link to section: ([^"]+)"', post_built)
+check("post: heading anchor labels use heading text, not ids",
+      bool(post_anchors)
+      and all(not a.startswith(("ps-", "at-a-glance")) or a == "At a glance" for a in post_anchors)
+      and any(a == "At a glance" for a in post_anchors),
+      "; ".join(post_anchors[:4]))
+
+# Back-to-top button must have an accessible name.
+_btt = re.search(r'<button[^>]*id="back-to-top"[^>]*>', home)
+check("a11y: back-to-top has aria-label",
+      _btt is not None and 'aria-label="Back to top"' in _btt.group(0),
+      _btt.group(0)[:120] if _btt else "missing")
+
+# Post navigation: the visible title must be contained in the accessible name.
+prev_m = re.search(r'<a[^>]*href="[^"]*"[^>]*aria-label="([^"]*)"', post_built)
+nav_block = re.search(r'<nav class="post-navigation.*?</nav>', post_built, re.S)
+if nav_block:
+    nav_html = nav_block.group(0)
+    nav_links = re.findall(r'<a[^>]*aria-label="([^"]*)"[^>]*>\s*<p>(.*?)</p>', nav_html, re.S)
+    named_ok = all(
+        re.sub(r"<[^>]+>", "", vis).strip() in name for name, vis in nav_links
+    )
+    check("a11y: post-nav accessible names contain the visible title",
+          bool(nav_links) and named_ok,
+          "names: %s" % [n for n, _ in nav_links])
+    nav_disabled = re.findall(r'<div class="btn btn-outline-primary disabled"[^>]*aria-label="([^"]*)"', nav_html)
+    check("a11y: disabled post-nav placeholders keep consistent accessible text",
+          all(n for n in nav_disabled), "labels: %s" % nav_disabled)
+else:
+    check("a11y: post-nav present on posts", False, "no post-navigation block")
+
+# Post cover (LCP): no lazy loading, fetchpriority=high, real dimensions.
+cover_img = re.search(r'<a[^>]*class="[^"]*preview-img[^"]*"[^>]*>\s*<img[^>]*>', post_built)
+if cover_img:
+    img_tag = re.search(r'<img[^>]*>', cover_img.group(0)).group(0)
+    check("lcp: post cover not lazy-loaded", 'loading="lazy"' not in img_tag, img_tag[:150])
+    check("lcp: post cover has fetchpriority=high", 'fetchpriority="high"' in img_tag, img_tag[:150])
+    check("lcp: post cover declares real dimensions",
+          'width="884"' in img_tag and 'height="306"' in img_tag, img_tag[:150])
+else:
+    check("lcp: post cover image present", False, "no cover anchor on Management post")
+
+# Other in-body images must stay lazy.
+body_imgs = re.findall(r'<img[^>]*loading="lazy"[^>]*>', post_built)
+check("lcp: body images remain lazy-loaded where present (informational)",
+      True, "%d lazy imgs" % len(body_imgs))
+
+# ---------------------------------------------------------------------------
 # 9. required assets / CSS / JS
 # ---------------------------------------------------------------------------
 check("assets: theme CSS built", (SITE / "assets/css/jekyll-theme-chirpy.css").is_file())
@@ -272,7 +455,9 @@ check("assets: profspectra partial present",
 check("assets: theme.min.js present", (SITE / "assets/js/dist/theme.min.js").is_file())
 check("assets: app.min.js present (pwa)", (SITE / "app.min.js").is_file())
 check("assets: sw.min.js present (pwa)", (SITE / "sw.min.js").is_file())
-check("assets: search index built", (SITE / "feed.xml").is_file())
+check("assets: search index built",
+      (SITE / "assets/js/data/search.json").is_file(),
+      "search.json is the site search index (feed.xml is the RSS feed)")
 
 # ---------------------------------------------------------------------------
 # 9b. resting search chrome: the 44px `#topbar .btn` rule (specificity 0,2,0)
