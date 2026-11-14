@@ -1415,7 +1415,7 @@ class TestContentValidity(unittest.TestCase):
     def test_confirmed_working_requires_verification_record(self):
         for post in self._posts():
             text = post.read_text(encoding="utf-8")
-            m = re.search(r"\*\*PoC status: confirmed working", text)
+            m = re.search(r"\*\*PoC status: confirmed working", text, re.I)
             if m:
                 self.assertRegex(
                     text,
