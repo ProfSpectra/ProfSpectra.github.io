@@ -1,4 +1,4 @@
-# ProfSpectra
+# Username
 
 Source for [profspectra.github.io](https://profspectra.github.io) — Username's security
 writeups and cheatsheets. Jekyll + the Chirpy theme (gem, not a fork), published as
@@ -13,6 +13,10 @@ links, contact links — lives in **one file: [`_data/portfolio.yml`](_data/port
 Edit the YAML, commit, and the home page rebuilds from it. Featured writeups are
 referenced by their URL, so their title, date and description always stay in sync with
 the post itself.
+
+`index.html` intentionally contains only `layout: home`; it selects the template rather
+than storing page text. The composition is in `_layouts/home.html`, and the visual
+styling is in `_sass/profspectra.scss`.
 
 ### Writing a post
 
@@ -90,3 +94,14 @@ profspectra-ruby /home/hermesctl/.local/rubies/ruby-3.2/usr/bin/bundle3.2 exec j
 
 CI (`.github/workflows/pages-deploy.yml`) runs the same production build, htmlproofer
 and `tools/check_site.py` on every push to `main`.
+
+## Restore point
+
+The pre-redesign site is preserved as Git tag `backup/pre-redesign-20261114`
+(commit `081b6ca`). To inspect it without changing your work:
+
+```bash
+git switch --detach backup/pre-redesign-20261114
+```
+
+To return to the current design afterward: `git switch main`.

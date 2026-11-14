@@ -317,8 +317,131 @@ article.card {
 // selectors — match its specificity with an ID rule pinned to the ink
 // token, which reads on both the light paper and dark card surfaces.
 #related-posts time {
-  color: var(--ps-ink);
+  color: var(--ps-muted);
 }
+
+// Further Reading uses consistent editorial cards with aligned metadata.
+#related-posts {
+  margin-top: 4rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--ps-rule-strong);
+
+  > h2 {
+    margin: 0 0 1rem;
+    color: var(--ps-muted);
+    font-family: var(--ps-mono);
+    font-size: 0.8rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+}
+
+.ps-related-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.ps-related-item {
+  min-width: 0;
+}
+
+.ps-related-link {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 100%;
+  padding: 1.25rem;
+  color: var(--ps-ink);
+  text-decoration: none;
+  background: var(--ps-paper);
+  border: 1px solid var(--ps-rule);
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgb(20 22 26 / 4%);
+
+  &:hover,
+  &:focus-visible {
+    border-color: var(--ps-accent);
+    box-shadow: 0 4px 14px rgb(20 22 26 / 8%);
+
+    .ps-related-title,
+    .ps-related-arrow {
+      color: var(--ps-accent);
+    }
+  }
+}
+
+.ps-related-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.ps-related-number {
+  color: var(--ps-accent);
+  font-family: var(--ps-mono);
+  font-size: 0.8rem;
+}
+
+.ps-related-body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ps-related-title {
+  font-family: var(--ps-serif);
+  font-size: 1.35rem;
+  line-height: 1.35;
+  text-decoration: underline;
+  text-decoration-color: var(--ps-rule-strong);
+  text-underline-offset: 0.2em;
+  overflow-wrap: anywhere;
+}
+
+.ps-related-description {
+  color: var(--ps-muted);
+  font-size: 0.95rem;
+  line-height: 1.65;
+}
+
+.ps-related-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.ps-related-arrow {
+  font-size: 1.4rem;
+}
+
+@media (max-width: 1199.98px) {
+  .ps-related-list {
+    grid-template-columns: 1fr;
+  }
+
+  .ps-related-link {
+    min-height: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ps-related-link {
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+  }
+
+  .ps-related-title,
+  .ps-related-arrow {
+    transition: color 150ms ease;
+  }
+}
+
 
 // covers keep natural aspect ratio — never cropped
 .post-preview img {

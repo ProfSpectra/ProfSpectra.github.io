@@ -1,21 +1,19 @@
 {%- comment -%}
-  ProfSpectra sidebar override.
+  Username sidebar override.
   Same as the theme's sidebar.html except:
   - nav items use aria-current="page" instead of a color-only `active` class;
-  - the profile block renders the compact ProfSpectra monogram instead of
-    a full-width avatar image.
+  - the profile block uses the original default profile picture.
 {%- endcomment -%}
 
 <!-- The Side Bar -->
 
 <aside aria-label="Sidebar" id="sidebar" class="d-flex flex-column align-items-end">
   <header class="profile-wrapper">
-    <a href="{{ '/' | relative_url }}" id="avatar" class="ps-monogram" aria-label="ProfSpectra home">
+    <a href="{{ '/' | relative_url }}" id="avatar" class="rounded-circle" aria-label="Username home">
       {%- capture avatar_url -%}
         {% include media-url.html src=site.avatar %}
       {%- endcapture -%}
-      <img src="{{- avatar_url -}}" width="112" height="112" alt="" onerror="this.style.display='none'">
-      <span class="ps-monogram-text" aria-hidden="true">PS</span>
+      <img src="{{- avatar_url -}}" width="112" height="112" alt="Username profile picture" onerror="this.style.display='none'">
     </a>
 
     <a class="site-title d-block" href="{{ '/' | relative_url }}">{{ site.title }}</a>

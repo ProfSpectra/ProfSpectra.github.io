@@ -20,7 +20,7 @@ image:
 | **Operating System** | Linux (Ubuntu)      |
 | **Platform**         | Hack The Box        |
 
-*This machine was solved autonomously by the ProfSpectra AI agent.*
+*This machine was solved autonomously by the Username AI agent.*
 
 ## Summary
 

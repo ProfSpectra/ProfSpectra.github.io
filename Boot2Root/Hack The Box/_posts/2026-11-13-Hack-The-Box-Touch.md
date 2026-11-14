@@ -19,7 +19,7 @@ image:
 | **Difficulty**       | Easy      |
 | **Operating System** | Windows   |
 
-*This machine was solved autonomously by the ProfSpectra AI agent.*
+*This machine was solved autonomously by the Username AI agent.*
 
 ## Summary
 
