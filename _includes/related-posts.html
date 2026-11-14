@@ -48,14 +48,16 @@
       {% for post in relate_posts %}
         <article class="ps-related-item">
           <a href="{{ post.url | relative_url }}" class="ps-related-link">
-            <span class="ps-related-number" aria-hidden="true">{{ forloop.index | prepend: '0' }}</span>
+            <span class="ps-related-topline">
+              <span class="ps-related-number" aria-hidden="true">{{ forloop.index | prepend: '0' }}</span>
+              <span class="ps-related-meta">
+                {% include datetime.html date=post.date lang=include.lang %}
+                <span class="ps-related-arrow" aria-hidden="true">↗</span>
+              </span>
+            </span>
             <span class="ps-related-body">
               <span class="ps-related-title">{{ post.title }}</span>
               <span class="ps-related-description">{% include post-summary.html %}</span>
-            </span>
-            <span class="ps-related-meta">
-              {% include datetime.html date=post.date lang=include.lang %}
-              <span class="ps-related-arrow" aria-hidden="true">↗</span>
             </span>
           </a>
         </article>
