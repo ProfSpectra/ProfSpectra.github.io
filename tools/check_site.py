@@ -82,11 +82,11 @@ def png_dims(path):
 # ---------------------------------------------------------------------------
 home = read("index.html")
 title_m = re.search(r"<title>.*?</title>", home)
-check("identity: site title is ProfSpectra",
-      re.search(r"<title>\s*ProfSpectra\s*</title>", home),
+check("identity: site title is Username",
+      re.search(r"<title>\s*Username\s*</title>", home),
       title_m.group(0) if title_m else "no title")
-check("identity: og:site_name is ProfSpectra",
-      'property="og:site_name" content="ProfSpectra"' in home)
+check("identity: og:site_name is Username",
+      'property="og:site_name" content="Username"' in home)
 check("identity: description is not the Chirpy theme tagline",
       "minimal, responsive and feature-rich" not in home
       and 'name="description" content="' in home)
@@ -120,8 +120,8 @@ except FileNotFoundError:
     check("writeups: /writeups/ page exists", False, "missing _site/writeups/index.html")
 
 if writeups:
-    check("writeups: title is 'Writeups | ProfSpectra'",
-          re.search(r"<title>\s*Writeups \| ProfSpectra\s*</title>", writeups) is not None)
+    check("writeups: title is 'Writeups | Username'",
+          re.search(r"<title>\s*Writeups \| Username\s*</title>", writeups) is not None)
     missing = []
     for p in all_source_posts():
         title = fm_get(front_matter_of(p), "title")
@@ -494,10 +494,10 @@ for rel, text in (("index.html", home),
 
 sidebar = re.search(r"<aside[^>]*Sidebar[^>]*>.*?</aside>", home, re.S)
 if sidebar:
-    check("fabrication: default avatar gone from sidebar",
-          "web-app-manifest-512x512.png" not in sidebar.group(0))
-    check("fabrication: monogram mark used in sidebar",
-          "profspectra-mark" in sidebar.group(0))
+    check("identity: original default avatar used",
+          "web-app-manifest-512x512.png" in sidebar.group(0))
+    check("identity: custom monogram not used",
+          "profspectra-mark" not in sidebar.group(0) and "ps-monogram" not in sidebar.group(0))
 check("fabrication: dead X handle not used", "x.com/ros.putra" not in home)
 check("fabrication: working X handle present", "ros_putra" in home)
 
@@ -505,7 +505,7 @@ for m in re.finditer(r'<script type="application/ld\+json">(.*?)</script>', home
     try:
         blob = json.dumps(json.loads(m.group(1)))
         check("jsonld: chosen display name present", '"name":"Username"' in blob or '"name": "Username"' in blob)
-        check("jsonld: has ProfSpectra identity", "ProfSpectra" in blob)
+        check("jsonld: has Username identity", "Username" in blob)
     except json.JSONDecodeError:
         check("jsonld: home JSON-LD parses", False, m.group(1)[:120])
 

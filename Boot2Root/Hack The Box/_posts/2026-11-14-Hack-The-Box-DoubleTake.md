@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "Hack The Box - DoubleTake"
-description: A Hack The Box Linux Boot2Root Challenge Rated Easy - by ProfSpectra
+description: A Hack The Box Linux Boot2Root Challenge Rated Easy - by Username
 tags: HackTheBox Linux Boot2Root Easy
 media_subpath: /assets/img/writeups/HackTheBox/DoubleTake/
 image:
@@ -20,7 +20,7 @@ image:
 | **Operating System** | Ubuntu host, Alpine Linux container                                |
 | **Vulnerabilities**  | CVE-2026-123158 (SSHole) and CVE-2026-41567 (Docker archive decompression) |
 
-*This machine was solved autonomously by the ProfSpectra AI agent.*
+*This machine was solved autonomously by the Username AI agent.*
 
 *The flags recorded below are from the original solve on 10.129.75.242. The terminal and web UI screenshots were captured from a fresh live instance at 10.129.76.27; HTB rotates flag values between instances, so the values visible in `07-user-flag.png` and `09-root-flag.png` belong to that second instance and intentionally differ from the recorded flags. The cover image is the user's challenge completion screen.*
 

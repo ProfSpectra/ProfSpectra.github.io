@@ -1,4 +1,4 @@
-# ProfSpectra portfolio landing content.
+# Username portfolio landing content.
 # This single file drives the home page hero, focus areas, featured
 # writeups, projects and contact links. Edit here — no layout changes needed.
 # Posts keep their own metadata in their Markdown front matter.
@@ -8,7 +8,7 @@ kicker: "Security writeups & field notes"
 headline: "Username lets AI do the security work—then documents the path."
 
 lede: >-
-  ProfSpectra follows AI agents through Hack The Box and PwnTillDawn
+  Username follows AI agents through Hack The Box and PwnTillDawn
   investigations, from reconnaissance to root, then turns the results into
   reproducible walkthroughs and practical cheatsheets.
 
@@ -65,9 +65,9 @@ projects_heading: "Code & projects"
 
 # Only real, public repositories.
 projects:
-  - name: "ProfSpectra.github.io"
+  - name: "Username.github.io"
     url: https://github.com/ProfSpectra/ProfSpectra.github.io
-    note: "This site — Jekyll source for the writeups and cheatsheets you are reading."
+    note: "This site — Jekyll source for the writeups and cheatsheets you are reading (repository: ProfSpectra.github.io)."
   - name: "Estimating-PI"
     url: https://github.com/ProfSpectra/Estimating-PI
     note: "A small numerical-methods exercise estimating the value of pi."
@@ -81,7 +81,7 @@ contact_lede: >-
   compare notes? All of these reach me directly.
 
 contact_links:
-  - label: "GitHub — ProfSpectra"
+  - label: "GitHub — Username"
     url: https://github.com/ProfSpectra
   - label: "LinkedIn — Username"
     url: https://www.linkedin.com/in/putra-kaha

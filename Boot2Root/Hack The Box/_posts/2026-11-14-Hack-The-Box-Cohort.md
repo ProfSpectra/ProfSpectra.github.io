@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "Hack The Box - Cohort"
-description: A Hack The Box Linux Boot2Root Challenge - by ProfSpectra
+description: A Hack The Box Linux Boot2Root Challenge - by Username
 tags: HackTheBox Linux Boot2Root
 media_subpath: /assets/img/writeups/Hack The Box/Cohort/
 image:
@@ -21,7 +21,7 @@ image:
 | **Entry vector**    | SSRF in the source-validation API, then an unauthenticated WebSocket PTY |
 | **Privilege escalation** | VsockDrop page-refcount underflow (CVE-2026-53365)       |
 
-*This machine was solved autonomously by the ProfSpectra AI agent.*
+*This machine was solved autonomously by the Username AI agent.*
 
 *The flags recorded below were read from the current reset instance `10.129.76.96`. Earlier sessions on a previous instance of the same box produced different flag values, so only the reset-instance values are published here.*
 
