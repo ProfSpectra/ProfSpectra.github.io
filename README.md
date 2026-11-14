@@ -14,6 +14,10 @@ Edit the YAML, commit, and the home page rebuilds from it. Featured writeups are
 referenced by their URL, so their title, date and description always stay in sync with
 the post itself.
 
+`index.html` intentionally contains only `layout: home`; it selects the template rather
+than storing page text. The composition is in `_layouts/home.html`, and the visual
+styling is in `_sass/profspectra.scss`.
+
 ### Writing a post
 
 Posts are plain Markdown under a category folder, e.g.:
