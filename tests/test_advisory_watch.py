@@ -1400,7 +1400,7 @@ class TestContentValidity(unittest.TestCase):
     def test_poc_status_labelled(self):
         for post in self._posts():
             text = post.read_text(encoding="utf-8")
-            m = re.search(r"\*\*PoC status: ([A-Za-z /-]+)\*\*", text)
+            m = re.search(r"\*\*PoC status: ([A-Za-z /()-]+)\*\*", text)
             self.assertIsNotNone(m, "%s missing PoC status" % post.name)
             allowed = {"pending / unverified", "none found",
                        "confirmed working (see verification record)",
