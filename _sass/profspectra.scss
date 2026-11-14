@@ -317,8 +317,117 @@ article.card {
 // selectors — match its specificity with an ID rule pinned to the ink
 // token, which reads on both the light paper and dark card surfaces.
 #related-posts time {
-  color: var(--ps-ink);
+  color: var(--ps-muted);
 }
+
+// Further Reading is an editorial link list, not the stock three-card grid.
+#related-posts {
+  margin-top: 4rem;
+  padding: 1.5rem 0.75rem 0;
+  border-top: 1px solid var(--ps-rule-strong);
+
+  > h2 {
+    margin: 0 0 0.75rem;
+    color: var(--ps-muted);
+    font-family: var(--ps-mono);
+    font-size: 0.8rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+}
+
+.ps-related-item {
+  border-top: 1px solid var(--ps-rule);
+}
+
+.ps-related-link {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: start;
+  min-height: 44px;
+  padding: 1.25rem 0;
+  color: var(--ps-ink);
+  text-decoration: none;
+
+  &:hover,
+  &:focus-visible {
+    .ps-related-title {
+      color: var(--ps-accent);
+      text-decoration-color: currentColor;
+    }
+
+    .ps-related-arrow {
+      color: var(--ps-accent);
+    }
+  }
+}
+
+.ps-related-number {
+  padding-top: 0.3rem;
+  color: var(--ps-accent);
+  font-family: var(--ps-mono);
+  font-size: 0.8rem;
+}
+
+.ps-related-body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.ps-related-title {
+  font-family: var(--ps-serif);
+  font-size: 1.35rem;
+  line-height: 1.35;
+  text-decoration: underline;
+  text-decoration-color: var(--ps-rule-strong);
+  text-underline-offset: 0.2em;
+  overflow-wrap: anywhere;
+}
+
+.ps-related-description {
+  max-width: 68ch;
+  color: var(--ps-muted);
+  font-size: 0.95rem;
+  line-height: 1.65;
+}
+
+.ps-related-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding-top: 0.25rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.ps-related-arrow {
+  font-size: 1.4rem;
+}
+
+@media (max-width: 575.98px) {
+  .ps-related-link {
+    grid-template-columns: 1.5rem minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+
+  .ps-related-meta {
+    grid-column: 2;
+    justify-content: space-between;
+    padding-top: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ps-related-title,
+  .ps-related-arrow {
+    transition: color 150ms ease;
+  }
+}
+
 
 // covers keep natural aspect ratio — never cropped
 .post-preview img {
