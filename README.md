@@ -90,3 +90,14 @@ profspectra-ruby /home/hermesctl/.local/rubies/ruby-3.2/usr/bin/bundle3.2 exec j
 
 CI (`.github/workflows/pages-deploy.yml`) runs the same production build, htmlproofer
 and `tools/check_site.py` on every push to `main`.
+
+## Restore point
+
+The pre-redesign site is preserved as Git tag `backup/pre-redesign-20261114`
+(commit `081b6ca`). To inspect it without changing your work:
+
+```bash
+git switch --detach backup/pre-redesign-20261114
+```
+
+To return to the current design afterward: `git switch main`.
