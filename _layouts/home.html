@@ -159,8 +159,11 @@ layout: default
     <h2 id="ps-contact-heading" class="ps-contact-title">{{ portfolio.contact_heading }}</h2>
     <p class="ps-contact-lede">{{ portfolio.contact_lede }}</p>
     <ul class="ps-contact-links">
-      {%- for link in portfolio.contact_links -%}
-        <li><a href="{{ link.url }}" rel="noopener">{{ link.label }}</a></li>
+      {%- assign primary_contact = portfolio.contact_links | first -%}
+      <li class="ps-contact-primary"><a href="{{ primary_contact.url }}" rel="noopener">{{ primary_contact.label }} <span aria-hidden="true">↗</span></a></li>
+      {%- for link in portfolio.contact_links offset: 1 -%}
+          {%- assign link_name = link.label | split: ' — ' | first -%}
+          <li><a href="{{ link.url }}" rel="noopener">{{ link_name }} <span aria-hidden="true">↗</span></a></li>
       {%- endfor -%}
     </ul>
   </section>

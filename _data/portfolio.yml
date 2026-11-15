@@ -75,17 +75,15 @@ projects:
     url: https://github.com/ProfSpectra/CVE-POC
     note: "A collection of CVE proof-of-concept notes and references."
 
-contact_heading: "Get in touch"
-contact_lede: >-
-  Questions about a writeup, a correction to a technique, or just want to
-  compare notes? All of these reach me directly.
+contact_heading: "Talk shop."
+contact_lede: "Questions or corrections? Email me."
 
 contact_links:
-  - label: "GitHub — Username"
-    url: https://github.com/ProfSpectra
-  - label: "LinkedIn — Username"
-    url: https://www.linkedin.com/in/putra-kaha
-  - label: "X — @ros_putra"
-    url: https://x.com/ros_putra
-  - label: "Email — putraros1226@gmail.com"
+  - label: "Email"
     url: mailto:putraros1226@gmail.com
+  - label: "GitHub"
+    url: https://github.com/ProfSpectra
+  - label: "LinkedIn"
+    url: https://www.linkedin.com/in/putra-kaha
+  - label: "X"
+    url: https://x.com/ros_putra

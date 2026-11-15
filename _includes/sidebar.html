@@ -134,7 +134,8 @@
       {% if url %}
         <a
           href="{{ url }}"
-          aria-label="{{ entry.type }}"
+          aria-label="{{ entry.type | capitalize }}"
+          title="{{ entry.type | capitalize }}"
           {% assign link_types = '' %}
 
           {% unless entry.noblank %}

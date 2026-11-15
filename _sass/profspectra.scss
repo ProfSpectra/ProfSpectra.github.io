@@ -1054,6 +1054,11 @@ div.highlight {
 
   a {
     color: var(--ps-ink-2-text);
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    gap: 0.25rem;
+    font-weight: 500;
     text-decoration: underline;
     text-decoration-color: var(--ps-ink-2-rule);
     text-underline-offset: 3px;
@@ -1067,6 +1072,107 @@ div.highlight {
     &:focus-visible {
       outline: 2px solid #f2b457;
       outline-offset: 2px;
+    }
+  }
+}
+
+// The sidebar utility group is a deliberate single-row toolbar.
+.sidebar-bottom {
+  display: grid !important;
+  grid-template-columns: repeat(3, 44px);
+  justify-content: space-between;
+  gap: 0.5rem 0.35rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--ps-rule);
+
+  .btn-group {
+    position: relative;
+  }
+
+  .icon-border {
+    display: none;
+  }
+
+  .btn-group,
+  > a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+    margin: 0;
+  }
+
+  a {
+    color: var(--ps-muted);
+    border: 1px solid transparent;
+    border-radius: 50%;
+    background: transparent;
+
+    &:hover,
+    &:focus-visible {
+      color: var(--ps-accent);
+      border-color: var(--ps-rule-strong);
+      background: transparent;
+    }
+  }
+
+  .btn-group .dropdown-menu {
+    position: absolute;
+  }
+}
+
+// Consolidate article metadata and remove default template repetition.
+article > header {
+  .post-meta > div:last-child {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-top: 0.65rem;
+    border-top: 1px solid var(--ps-rule);
+  }
+
+  figcaption {
+    color: var(--ps-muted);
+    font-size: 0.85rem;
+    text-align: left !important;
+  }
+}
+
+// Markdown's summary tables use simple aligned rows, not spreadsheet boxes.
+.table-wrapper {
+  margin: 1.25rem 0 2rem;
+
+  > table {
+    border-collapse: collapse;
+
+    thead {
+      border-bottom: 1px solid var(--ps-rule-strong);
+    }
+
+    tbody tr,
+    tbody tr:nth-child(2n),
+    tbody tr:nth-child(2n + 1) {
+      background: transparent;
+      border-bottom: 1px solid var(--ps-rule);
+    }
+
+    th,
+    td {
+      padding: 0.8rem 1rem;
+      text-align: left;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+    }
+
+    th:first-child,
+    td:first-child {
+      width: 28%;
+      padding-left: 0;
+      color: var(--ps-muted);
+      font-weight: 500;
     }
   }
 }

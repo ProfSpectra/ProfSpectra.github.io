@@ -33,7 +33,7 @@ script_includes:
     {% endif %}
 
     <div class="post-meta text-muted">
-      <!-- published date -->
+      <!-- publication date (the layout emits the revision date only when it differs) -->
       <span>
         {{ site.data.locales[lang].post.posted }}
         {% include datetime.html date=page.date tooltip=true lang=lang %}
