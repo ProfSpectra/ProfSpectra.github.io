@@ -1102,8 +1102,18 @@ div.highlight {
 
   .btn-group {
     position: relative;
+    align-self: center;
     margin-left: -0.6rem !important;
     margin-right: -0.6rem !important;
+  }
+
+  #mode-toggle {
+    position: relative;
+    top: 0;
+    bottom: auto;
+    margin: 0 !important;
+    align-self: center;
+    vertical-align: middle;
   }
 
   .icon-border {
@@ -1202,6 +1212,11 @@ article > header {
 // ---------------------------------------------------------------------------
 // Misc chrome polish
 // ---------------------------------------------------------------------------
+
+body:has(.ps-home) #tail-wrapper {
+  flex: 0 0 100%;
+  max-width: 100%;
+}
 
 #tail-wrapper {
   max-width: none;
