@@ -580,10 +580,11 @@ div.highlight {
   border-bottom: 1px solid var(--ps-rule-strong);
   align-items: center;
 
-  @media (min-width: 992px) {
+  @media (min-width: 992px) and (min-height: 700px) {
     grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
     gap: 3.5rem;
-    padding: 4.2rem 0 3.4rem;
+    min-height: calc(100svh - 47px);
+    padding: 2rem 0;
   }
 }
 
@@ -1078,11 +1079,12 @@ div.highlight {
 
 // The sidebar utility group is a deliberate equal-column toolbar.
 .sidebar-bottom {
-  display: grid !important;
-  grid-template-columns: repeat(3, 44px);
-  justify-content: space-between;
-  gap: 0.5rem 0.35rem;
-  padding-top: 0.8rem;
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.75rem 0.75rem 0 0;
   border-top: 1px solid var(--ps-rule);
 
   .btn-group {
@@ -1186,10 +1188,44 @@ article > header {
 // Misc chrome polish
 // ---------------------------------------------------------------------------
 
+#tail-wrapper {
+  max-width: none;
+}
+
 footer {
   color: var(--ps-muted);
   border-top: 1px solid var(--ps-rule);
   padding-top: 1.2rem;
+}
+
+.ps-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 1.5rem;
+  padding: 1rem 0 1.5rem;
+  color: var(--ps-muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+
+  p {
+    margin: 0;
+  }
+
+  a {
+    color: inherit;
+    text-decoration-color: var(--ps-rule-strong);
+    text-underline-offset: 0.15em;
+  }
+}
+
+.ps-footer-identity {
+  font-weight: 500;
+}
+
+.ps-footer-credit {
+  font-size: 0.75rem;
 }
 
 .post-tags .post-tag {

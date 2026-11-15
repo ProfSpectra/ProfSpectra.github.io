@@ -1,0 +1,13 @@
+<!-- Compact footer: content ownership first, implementation credit secondary. -->
+<footer aria-label="Site Info" class="ps-footer">
+  <p class="ps-footer-identity">
+    © {{ 'now' | date: '%Y' }} {{ site.social.name }}.
+    {% if site.data.locales[include.lang].copyright.brief %}
+      <span>{{ site.data.locales[include.lang].copyright.brief }}</span>
+    {% endif %}
+  </p>
+  <p class="ps-footer-credit">
+    Built with <a href="https://jekyllrb.com" target="_blank" rel="noopener">Jekyll</a>
+    and <a href="https://github.com/cotes2020/jekyll-theme-chirpy" target="_blank" rel="noopener">Chirpy</a>.
+  </p>
+</footer>
