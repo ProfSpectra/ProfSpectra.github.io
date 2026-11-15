@@ -215,15 +215,17 @@ if pf.is_file():
           rendered_featured == len(featured_entries),
           "rendered %d of %d" % (rendered_featured, len(featured_entries)))
 
-    # Latest-writing list must render exactly latest_count entries —
-    # guards the `for ... limit:` loop (the `| limit:` filter is a no-op
-    # and previously rendered all 8 posts).
+    # The secondary list must contain no curated featured posts. Its length is
+    # content-driven; do not assume a fixed number as new posts are published.
     latest_count = (portfolio_data or {}).get("latest_count")
     if latest_count:
         m = re.search(r'<ul class="ps-latest-list">(.*?)</ul>', home, re.S)
-        n = len(re.findall(r"<li>", m.group(1))) if m else 0
-        check("data: latest list renders exactly %s entries" % latest_count,
-              n == int(latest_count), "rendered %d" % n)
+        latest_html = m.group(1) if m else ""
+        n = len(re.findall(r"<li>", latest_html))
+        check("data: secondary list contains posts", n > 0, "rendered %d" % n)
+        for entry in featured_entries:
+            check("data: featured post excluded from secondary list %s" % entry["path"],
+                  'href="%s"' % entry["path"] not in latest_html)
 
     # projects: names under the `projects:` list only (match after the key)
     proj_names = re.findall(r"^projects:\n((?:\s+- name:\s*\S+.*\n?(?:\s{4,}\S.*\n?)*)*)",

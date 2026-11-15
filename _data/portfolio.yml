@@ -15,21 +15,20 @@ lede: >-
 cta_primary: "Read the writeups"
 cta_secondary: "About & contact"
 
-# Hero visual: the labels below drive the decorative "field notebook /
-# attack path" motif beside the headline. Purely illustrative — each is a
-# short, truthful fragment of the site's own methodology, never a claim.
+# Hero visual: labels/details are sourced from an existing investigation.
+# Keep this decorative summary truthful when changing the featured work.
 hero_visual:
-  notebook_title: "FIELD NOTES — B2R/011"
+  notebook_title: "CASE NOTES — COHORT"
   steps:
-    - label: "RECON"
-      detail: "nmap -sV -sC"
-    - label: "FOOTHOLD"
-      detail: "public exploit path"
-    - label: "PRIVESC"
-      detail: "misconfig review"
+    - label: "ENTRY"
+      detail: "SSRF validation"
+    - label: "ACCESS"
+      detail: "WebSocket PTY"
+    - label: "ROOT"
+      detail: "VsockDrop"
     - label: "PROOF"
-      detail: "user.txt + root.txt"
-  stamp: "REPRODUCIBLE"
+      detail: "user + root flags"
+  stamp: "DOCUMENTED"
 
 focus_heading: "What this site covers"
 
@@ -56,7 +55,7 @@ featured_writeups:
   - path: /posts/Hack-The-Box-Management/
     note: "Web foothold through to root on an Ubuntu host — the most recent walkthrough."
 
-latest_heading: "Latest writing"
+latest_heading: "More from the notebook"
 latest_count: 4
 all_writeups_label: "All writeups"
 archive_label: "Full archive"

@@ -255,15 +255,23 @@ input:focus-visible,
   outline-offset: 2px;
 }
 
-#sidebar .btn,
 #topbar .btn,
 #back-to-top,
-.sidebar-bottom a {
+#sidebar .btn {
   min-width: 44px;
   min-height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+#sidebar .sidebar-bottom .btn,
+#sidebar .sidebar-bottom a {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
 }
 
 // Chirpy rests #search-cancel at `display:none` (specificity 0,1,0) but the
@@ -686,7 +694,7 @@ div.highlight {
 
 .ps-notebook-title {
   font-family: var(--ps-mono);
-  font-size: 0.66rem;
+  font-size: 0.8rem;
   letter-spacing: 0.14em;
   color: var(--ps-muted);
   text-transform: uppercase;
@@ -719,14 +727,14 @@ div.highlight {
 
 .ps-step-label {
   font-family: var(--ps-mono);
-  font-size: 0.68rem;
+  font-size: 0.78rem;
   letter-spacing: 0.1em;
   color: var(--ps-ink);
 }
 
 .ps-step-detail {
   font-family: var(--ps-mono);
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   color: var(--ps-muted);
   text-align: right;
 }
@@ -761,7 +769,7 @@ div.highlight {
 
 .ps-section-title {
   font-family: var(--ps-mono);
-  font-size: 0.72rem;
+  font-size: 0.8rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ps-meta);
@@ -886,7 +894,7 @@ div.highlight {
   gap: 0.5rem;
   align-items: center;
   font-family: var(--ps-mono);
-  font-size: 0.72rem;
+  font-size: 0.8rem;
   letter-spacing: 0.05em;
   color: var(--ps-ink-2-muted);
   margin: 0;
@@ -1078,17 +1086,24 @@ div.highlight {
 }
 
 // The sidebar utility group is a deliberate equal-column toolbar.
+#sidebar .sidebar-bottom {
+  padding-right: 0;
+  padding-left: 0;
+}
+
 .sidebar-bottom {
   display: flex !important;
   flex-wrap: nowrap !important;
-  justify-content: flex-start;
+  justify-content: center;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0.75rem 0.75rem 0 0;
+  gap: 3px;
+  padding: 0.75rem 0 0;
   border-top: 1px solid var(--ps-rule);
 
   .btn-group {
     position: relative;
+    margin-left: -0.6rem !important;
+    margin-right: -0.6rem !important;
   }
 
   .icon-border {
@@ -1103,10 +1118,10 @@ div.highlight {
     justify-content: center;
     flex: none;
     box-sizing: border-box;
-    width: 44px;
-    min-width: 44px;
-    height: 44px;
-    min-height: 44px;
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+    min-height: 40px;
     padding: 0;
     margin: 0 !important;
   }

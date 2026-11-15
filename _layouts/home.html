@@ -132,11 +132,14 @@ layout: default
   <section class="ps-section" aria-labelledby="ps-latest-heading">
     <h2 id="ps-latest-heading" class="ps-section-title">{{ portfolio.latest_heading }}</h2>
     <ul class="ps-latest-list">
-      {%- for post in site.posts limit: latest_count -%}
+      {%- for post in site.posts -%}
+        {%- assign featured_entry = featured | where: 'path', post.url | first -%}
+        {%- unless featured_entry -%}
         <li>
           <a href="{{ post.url | relative_url }}">{{ post.title | escape }}</a>
           <time datetime="{{ post.date | date_to_xmlschema }}">{{ post.date | date: "%b %-d, %Y" }}</time>
         </li>
+        {%- endunless -%}
       {%- endfor -%}
     </ul>
     <p><a class="ps-more" href="{{ '/archives/' | relative_url }}">{{ portfolio.archive_label }} <span aria-hidden="true">→</span></a></p>
