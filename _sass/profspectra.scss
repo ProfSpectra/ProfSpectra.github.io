@@ -91,7 +91,7 @@ body {
   color: var(--ps-muted);
   font-style: normal;
   font-family: var(--ps-mono);
-  font-size: 0.72rem;
+  font-size: 0.875rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -338,7 +338,7 @@ article.card {
     margin: 0 0 1rem;
     color: var(--ps-muted);
     font-family: var(--ps-mono);
-    font-size: 0.8rem;
+    font-size: 0.875rem;
     font-weight: 500;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -390,7 +390,7 @@ article.card {
 .ps-related-number {
   color: var(--ps-accent);
   font-family: var(--ps-mono);
-  font-size: 0.8rem;
+  font-size: 0.875rem;
 }
 
 .ps-related-body {
@@ -421,7 +421,7 @@ article.card {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   white-space: nowrap;
 }
 
@@ -491,7 +491,7 @@ div.highlight {
 .chip {
   display: inline-block;
   font-family: var(--ps-mono);
-  font-size: 0.68rem;
+  font-size: 0.875rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ps-meta);
@@ -522,7 +522,7 @@ div.highlight {
 
   .writeup-meta {
     font-family: var(--ps-mono);
-    font-size: 0.72rem;
+    font-size: 0.875rem;
     letter-spacing: 0.05em;
     text-transform: uppercase;
     color: var(--ps-meta);
@@ -611,7 +611,7 @@ div.highlight {
 
 .ps-kicker {
   font-family: var(--ps-mono);
-  font-size: 0.72rem;
+  font-size: 0.875rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ps-accent);
@@ -769,7 +769,7 @@ div.highlight {
 
 .ps-section-title {
   font-family: var(--ps-mono);
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ps-meta);
@@ -894,7 +894,7 @@ div.highlight {
   gap: 0.5rem;
   align-items: center;
   font-family: var(--ps-mono);
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   letter-spacing: 0.05em;
   color: var(--ps-ink-2-muted);
   margin: 0;
@@ -944,7 +944,7 @@ div.highlight {
 .ps-record-read {
   margin: 0.15rem 0 0;
   font-family: var(--ps-mono);
-  font-size: 0.72rem;
+  font-size: 0.875rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #f2b457;
@@ -977,7 +977,7 @@ div.highlight {
 
     time {
       font-family: var(--ps-mono);
-      font-size: 0.72rem;
+      font-size: 0.875rem;
       color: var(--ps-meta);
       letter-spacing: 0.04em;
       white-space: nowrap;
@@ -1168,7 +1168,7 @@ article > header {
 
   figcaption {
     color: var(--ps-muted);
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     text-align: left !important;
   }
 }
@@ -1236,7 +1236,7 @@ footer {
   gap: 0.35rem 1.5rem;
   padding: 1rem 0 1.5rem;
   color: var(--ps-muted);
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   line-height: 1.5;
 
   p {
@@ -1255,7 +1255,7 @@ footer {
 }
 
 .ps-footer-credit {
-  font-size: 0.75rem;
+  font-size: 0.875rem;
 }
 
 .post-tags .post-tag {
@@ -1263,7 +1263,7 @@ footer {
   border-radius: 999px;
   color: var(--ps-meta);
   font-family: var(--ps-mono);
-  font-size: 0.7rem;
+  font-size: 0.875rem;
   text-transform: lowercase;
 }
 
@@ -1440,6 +1440,9 @@ pre.lineno {
 
 // ---------------------------------------------------------------------------
 // 200% text zoom at 320px: long unbreakable strings must wrap
+// (.chip added with the 0.875rem floor: single-word chips such as
+// "PwnTillDawn" otherwise stay unbreakable inline-blocks and push the
+// /writeups/ index past the viewport at 400% zoom)
 // ---------------------------------------------------------------------------
 
 .ps-projects a,
@@ -1447,7 +1450,8 @@ pre.lineno {
 .ps-latest-list a,
 footer a,
 #footer a,
-.content a {
+.content a,
+.chip {
   overflow-wrap: anywhere;
 }
 
